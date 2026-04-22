@@ -470,8 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let html = `<div class="font-bold text-base mt-0.5">${d}</div>`;
             if (info.reason) {
-                // break-keep을 사용해 줄바꿈이 자연스럽게 일어나도록 유도
-                html += `<div class="text-[0.65rem] leading-tight mt-1 opacity-85 text-center break-keep w-full flex-1 px-0.5">${info.reason}</div>`;
+                // 모바일 환경에서 긴 단어가 셀을 넓히는 것을 방지하기 위해 break-words 사용
+                html += `<div class="text-[0.6rem] sm:text-[0.65rem] leading-tight mt-1 opacity-85 text-center break-words w-full flex-1 px-0.5">${info.reason}</div>`;
             }
             div.innerHTML = html;
             container.appendChild(div);
