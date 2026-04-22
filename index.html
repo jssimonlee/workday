@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2개월 근무일 계산기</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Pretendard', 'sans-serif'] },
+                    colors: {
+                        work: '#eff6ff',        // blue-50 (생산적인 파스텔 블루)
+                        workBorder: '#bfdbfe',  // blue-200
+                        workText: '#1e40af',    // blue-800
+                        off: '#f5f5f4',         // stone-100
+                        offBorder: '#e7e5e4',   // stone-200
+                        offText: '#78716c',     // stone-500
+                        hol: '#fff1f2',         // rose-50
+                        holBorder: '#fecdd3',   // rose-200
+                        holText: '#be123c',     // rose-700
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .hide-scroll::-webkit-scrollbar { width: 6px; }
+        .hide-scroll::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        .break-keep { word-break: keep-all; }
+    </style>
+</head>
+<body class="bg-[#FDFBF7] min-h-screen text-stone-800 p-4 md:p-6 lg:p-8">
+
+    <!-- Holiday Management Modal -->
+    <div id="holiday-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 transition-opacity">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl w-[90%] max-w-md flex flex-col gap-5 border border-stone-200">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-bold text-stone-800 flex items-center gap-2">📅 휴일 관리</h3>
+                <button id="close-holiday-modal-btn" class="text-stone-400 hover:text-stone-600 font-bold text-3xl leading-none transition-colors">&times;</button>
+            </div>
+            
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-semibold text-stone-500">새로운 휴일 추가 (로컬에 저장됨)</label>
+                <div class="flex gap-2">
+                    <input type="date" id="new-holiday-date" class="flex-[1.2] p-2.5 rounded-xl border-2 border-stone-200 focus:border-amber-500 outline-none transition-all text-sm shadow-sm cursor-pointer">
+                    <input type="text" id="new-holiday-name" placeholder="휴일명" class="flex-[1.5] p-2.5 rounded-xl border-2 border-stone-200 focus:border-amber-500 outline-none transition-all text-sm shadow-sm">
+                    <button type="button" id="add-holiday-btn" class="flex-[0.6] bg-stone-700 hover:bg-stone-600 text-white rounded-xl font-medium transition-all active:scale-95 text-sm shadow-sm">추가</button>
+                </div>
+            </div>
+            
+            <hr class="border-stone-100">
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-stone-500 flex justify-between">
+                    <span>등록된 휴일 목록</span>
+                    <span class="text-[10px] text-stone-400 font-normal">모두 삭제/복원 가능</span>
+                </label>
+                <ul id="holiday-list" class="max-h-[300px] overflow-y-auto hide-scroll flex flex-col gap-1.5 mt-1 text-sm bg-stone-50/50 rounded-xl p-2 border border-stone-100"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal for Validation -->
+    <div id="alert-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-[60] transition-opacity">
+        <div class="bg-white rounded-3xl p-8 shadow-2xl w-[90%] max-w-sm flex flex-col items-center text-center gap-2 border border-stone-200 animate-[bounce_0.5s_ease-out]">
+            <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-4xl mb-2 shadow-inner border border-blue-100">
+                🔔
+            </div>
+            <h3 class="text-xl font-extrabold text-stone-800 mt-2">휴관일 선택 안내</h3>
+            <p class="text-stone-600 text-sm leading-relaxed mb-4">
+                공무직 도서관 휴관일을 먼저 선택해 주세요!<br>
+                <span class="text-[11px] text-stone-400 bg-stone-50 px-2 py-1 rounded mt-2 inline-block">해당 사항이 없다면 "없음"을 선택하세요.</span>
+            </p>
+            <button id="close-alert-btn" class="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white p-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/30 active:scale-95">
+                확인
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-[1400px] mx-auto flex flex-col xl:flex-row gap-6 lg:gap-8">
+        
+        <!-- Settings Sidebar -->
+        <aside class="w-full xl:w-[400px] bg-white/70 backdrop-blur-xl rounded-3xl p-6 shadow-2xl shadow-orange-900/5 flex flex-col gap-6 shrink-0 border border-stone-200/50">
+            <h2 class="text-2xl font-bold text-stone-800 flex items-center gap-2 justify-between">
+                <span>⚙️ 설정</span>
+                <button id="open-holiday-modal-btn" class="text-sm font-bold bg-amber-100 hover:bg-amber-200 text-amber-700 py-2 px-3 rounded-xl transition-all shadow-sm flex items-center gap-1 active:scale-95">
+                    📅 휴일 관리
+                </button>
+            </h2>
+            
+            <div class="flex flex-col gap-2 mt-2">
+                <label class="font-semibold text-sm text-stone-700">조회 연도 및 대상 월 (2개월 짝)</label>
+                <div class="flex gap-2">
+                    <input type="number" id="year-select" class="w-28 p-2.5 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-amber-500 outline-none transition-all font-medium text-stone-700 shadow-sm text-center">
+                    <select id="month-pair-select" class="flex-1 p-2.5 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-amber-500 outline-none transition-all font-medium text-stone-700 cursor-pointer shadow-sm text-center">
+                        <option value="1">1-2월</option>
+                        <option value="3">3-4월</option>
+                        <option value="5">5-6월</option>
+                        <option value="7">7-8월</option>
+                        <option value="9">9-10월</option>
+                        <option value="11">11-12월</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr class="border-stone-200">
+
+            <div class="flex flex-col gap-2">
+                <label class="font-semibold text-sm text-stone-700">공무직 도서관 휴관일</label>
+                <select id="library-closed-select" class="w-full p-2.5 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-blue-500 outline-none transition-all font-medium text-stone-700 cursor-pointer shadow-sm">
+                    <option value="">-- 휴관일 선택 (필수) --</option>
+                    <option value="none">해당 없음 (일반)</option>
+                    <option value="odd">1, 3주차 월요일 휴관</option>
+                    <option value="even">2, 4주차 월요일 휴관</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <label class="font-semibold text-sm text-stone-700">공무직 개인 휴일 (월 단위 지정)</label>
+                <p class="text-[11px] text-stone-500 leading-tight">
+                    * 이월 주간 판별을 위해 이전 달의 설정이 필요합니다.<br>
+                    * 도서관 휴관일이 있는 주는 월요일이 강제 휴무 처리됩니다.
+                </p>
+                <div id="personal-holidays-container" class="flex flex-col gap-2 mt-1">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+
+            <div class="mt-auto flex flex-col gap-6 pt-4">
+                <div class="flex flex-col gap-3">
+                    <button id="run-btn" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-orange-500/30 p-3.5 rounded-xl font-bold text-lg transition-all active:scale-[0.98] hover:-translate-y-0.5">
+                        공무직 휴관일 달력 확인하기
+                    </button>
+                    <button id="reset-btn" class="w-full bg-stone-100 hover:bg-stone-200 text-stone-600 border border-stone-200 p-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]">
+                        🔄 화면 초기화 (정직원 기본 달력으로 돌아가기)
+                    </button>
+                </div>
+                
+                <div class="flex justify-center gap-4 text-xs font-medium text-stone-600">
+                    <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded bg-work border-2 border-workBorder"></div>근무일</div>
+                    <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded bg-off border-2 border-offBorder"></div>개인휴일</div>
+                    <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded bg-hol border-2 border-holBorder"></div>공휴일/휴관</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col gap-6">
+            <header class="bg-white/70 backdrop-blur-xl rounded-3xl p-6 lg:p-8 shadow-xl shadow-orange-900/5 flex flex-col md:flex-row justify-between items-center gap-6 border border-stone-200/50">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-stone-800 tracking-tight flex items-center gap-3">
+                        <span class="text-4xl">🗓️</span> 근무일 계산기
+                    </h1>
+                    <p class="text-amber-600 font-medium mt-2 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span id="target-employee-type">정직원 기준 (설정 전)</span>
+                    </p>
+                </div>
+                
+                <div class="bg-white rounded-2xl p-5 border-2 border-amber-100 shadow-sm flex flex-col items-end min-w-[240px]">
+                    <div class="text-sm font-semibold text-stone-500 mb-1">총 근무일 수</div>
+                    <div class="flex items-baseline gap-1">
+                        <span id="total-work-days" class="text-5xl font-black text-amber-600 tabular-nums tracking-tighter">0</span>
+                        <span class="text-xl font-bold text-stone-600">일</span>
+                    </div>
+                    <div class="text-sm font-medium text-stone-400 mt-1">
+                        (정직원 기준: <span id="regular-work-days" class="text-stone-600 font-bold">0</span>일)
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex flex-col lg:flex-row gap-6">
+                <!-- Calendar 1 -->
+                <div class="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl p-6 sm:p-8 xl:px-10 shadow-lg shadow-orange-900/5 border border-stone-200/50">
+                    <h3 id="cal-title-1" class="text-center text-xl font-bold text-stone-800 mb-6">1월</h3>
+                    <div class="grid grid-cols-7 gap-3 mb-3">
+                        <div class="text-center text-sm font-bold text-rose-500">일</div>
+                        <div class="text-center text-sm font-bold text-stone-500">월</div>
+                        <div class="text-center text-sm font-bold text-stone-500">화</div>
+                        <div class="text-center text-sm font-bold text-stone-500">수</div>
+                        <div class="text-center text-sm font-bold text-stone-500">목</div>
+                        <div class="text-center text-sm font-bold text-stone-500">금</div>
+                        <div class="text-center text-sm font-bold text-blue-500">토</div>
+                    </div>
+                    <div id="cal-days-1" class="grid grid-cols-7 gap-3"></div>
+                </div>
+
+                <!-- Calendar 2 -->
+                <div class="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl p-6 sm:p-8 xl:px-10 shadow-lg shadow-orange-900/5 border border-stone-200/50">
+                    <h3 id="cal-title-2" class="text-center text-xl font-bold text-stone-800 mb-6">2월</h3>
+                    <div class="grid grid-cols-7 gap-3 mb-3">
+                        <div class="text-center text-sm font-bold text-rose-500">일</div>
+                        <div class="text-center text-sm font-bold text-stone-500">월</div>
+                        <div class="text-center text-sm font-bold text-stone-500">화</div>
+                        <div class="text-center text-sm font-bold text-stone-500">수</div>
+                        <div class="text-center text-sm font-bold text-stone-500">목</div>
+                        <div class="text-center text-sm font-bold text-stone-500">금</div>
+                        <div class="text-center text-sm font-bold text-blue-500">토</div>
+                    </div>
+                    <div id="cal-days-2" class="grid grid-cols-7 gap-3"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <!-- Load Default Holidays Array First -->
+    <script src="holidays.js"></script>
+    <!-- Load App Logic -->
+    <script src="script.js"></script>
+</body>
+</html>
