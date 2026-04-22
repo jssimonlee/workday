@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.personalSettings = {};
             updatePersonalSettingsUI();
             
-            // 모드를 정직원 기준으로 변경
+            // 모드를 기준 근무일로 변경
             state.mode = 'regular';
             renderAll();
         });
@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAll() {
         const titleEl = document.getElementById('target-employee-type');
         if (state.mode === 'regular') {
-            titleEl.innerText = '정직원 기준 (설정 전)';
+            titleEl.innerText = '기준 근무일 (설정 전)';
             titleEl.className = 'text-stone-500 font-medium mt-2 flex items-center gap-2';
             titleEl.previousElementSibling.className = 'w-2 h-2 rounded-full bg-stone-400';
         } else {
