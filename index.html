@@ -83,10 +83,10 @@
         </div>
     </div>
 
-    <div class="max-w-[1400px] mx-auto flex flex-col xl:flex-row gap-6 lg:gap-8">
+    <div class="max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-5">
         
         <!-- Settings Sidebar -->
-        <aside class="w-full xl:w-[400px] bg-amber-50/50 backdrop-blur-xl rounded-3xl p-5 shadow-2xl shadow-orange-900/5 flex flex-col gap-4 shrink-0 border border-amber-100/60">
+        <aside class="w-full lg:w-[360px] xl:w-[400px] bg-amber-50/50 backdrop-blur-xl rounded-3xl p-5 shadow-2xl shadow-orange-900/5 flex flex-col gap-4 shrink-0 border border-amber-100/60">
             <h2 class="text-xl font-bold text-stone-800 flex items-center gap-2 justify-between">
                 <span>⚙️ 설정</span>
                 <button id="open-holiday-modal-btn" class="text-sm font-bold bg-amber-100 hover:bg-amber-200 text-amber-700 py-1.5 px-3 rounded-xl transition-all shadow-sm flex items-center gap-1 active:scale-95">
@@ -164,7 +164,7 @@
 
         <!-- Main Content -->
         <main class="flex-1 flex flex-col gap-6">
-            <header class="bg-white/70 backdrop-blur-xl rounded-3xl p-6 lg:p-8 shadow-xl shadow-orange-900/5 flex flex-col md:flex-row justify-between items-center gap-6 border border-stone-200/50">
+            <header class="bg-white/70 backdrop-blur-xl rounded-3xl p-5 lg:p-6 shadow-xl shadow-orange-900/5 flex flex-col sm:flex-row justify-between items-center gap-4 border border-stone-200/50">
                 <div>
                     <h1 class="text-3xl font-extrabold text-stone-800 tracking-tight flex items-center gap-3">
                         <span class="text-4xl">🗓️</span> 근무일 계산기
@@ -195,11 +195,11 @@
                 </div>
             </header>
 
-            <div class="flex flex-col lg:flex-row gap-6">
+            <div class="flex flex-col md:flex-row gap-5">
                 <!-- Calendar 1 -->
-                <div class="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl p-4 sm:p-6 lg:p-8 xl:px-10 shadow-lg shadow-orange-900/5 border border-stone-200/50">
+                <div class="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl p-4 lg:p-6 shadow-lg shadow-orange-900/5 border border-stone-200/50">
                     <h3 id="cal-title-1" class="text-center text-xl font-bold text-stone-800 mb-4 sm:mb-6">1월</h3>
-                    <div class="grid grid-cols-7 gap-1 sm:gap-2 lg:gap-3 mb-2 sm:mb-3">
+                    <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
                         <div class="text-center text-xs sm:text-sm font-bold text-rose-500">일</div>
                         <div class="text-center text-xs sm:text-sm font-bold text-stone-500">월</div>
                         <div class="text-center text-xs sm:text-sm font-bold text-stone-500">화</div>
@@ -208,13 +208,13 @@
                         <div class="text-center text-xs sm:text-sm font-bold text-stone-500">금</div>
                         <div class="text-center text-xs sm:text-sm font-bold text-blue-500">토</div>
                     </div>
-                    <div id="cal-days-1" class="grid grid-cols-7 gap-1 sm:gap-2 lg:gap-3"></div>
+                    <div id="cal-days-1" class="grid grid-cols-7 gap-1 sm:gap-2"></div>
                 </div>
 
                 <!-- Calendar 2 -->
-                <div class="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl p-4 sm:p-6 lg:p-8 xl:px-10 shadow-lg shadow-orange-900/5 border border-stone-200/50">
+                <div class="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl p-4 lg:p-6 shadow-lg shadow-orange-900/5 border border-stone-200/50">
                     <h3 id="cal-title-2" class="text-center text-xl font-bold text-stone-800 mb-4 sm:mb-6">2월</h3>
-                    <div class="grid grid-cols-7 gap-1 sm:gap-2 lg:gap-3 mb-2 sm:mb-3">
+                    <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
                         <div class="text-center text-xs sm:text-sm font-bold text-rose-500">일</div>
                         <div class="text-center text-xs sm:text-sm font-bold text-stone-500">월</div>
                         <div class="text-center text-xs sm:text-sm font-bold text-stone-500">화</div>
@@ -223,7 +223,7 @@
                         <div class="text-center text-xs sm:text-sm font-bold text-stone-500">금</div>
                         <div class="text-center text-xs sm:text-sm font-bold text-blue-500">토</div>
                     </div>
-                    <div id="cal-days-2" class="grid grid-cols-7 gap-1 sm:gap-2 lg:gap-3"></div>
+                    <div id="cal-days-2" class="grid grid-cols-7 gap-1 sm:gap-2"></div>
                 </div>
             </div>
         </main>
