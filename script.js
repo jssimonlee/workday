@@ -4,6 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let deletedDefaults = [];
     let customHolidays = [];
     
+    // Excel State
+    let excelWorkers = [];
+    let excelDataByDate = {}; 
+    
     let state = {
         year: new Date().getFullYear(),
         monthStart: 1, 
@@ -19,6 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const personalContainer = document.getElementById('personal-holidays-container');
     const runBtn = document.getElementById('run-btn');
     const resetBtn = document.getElementById('reset-btn');
+    
+    // Excel Elements
+    const workerNameInput = document.getElementById('worker-name-input');
+    const addExcelBtn = document.getElementById('add-excel-btn');
+    const downloadExcelBtn = document.getElementById('download-excel-btn');
+    const excelCountEl = document.getElementById('excel-count');
+    const excelWorkersList = document.getElementById('excel-workers-list');
+    const excelToggleBtn = document.getElementById('excel-toggle-btn');
+    const excelToggleArrow = document.getElementById('excel-toggle-arrow');
+    const excelPanel = document.getElementById('excel-panel');
     
     // Modal Elements
     const holidayModal = document.getElementById('holiday-modal');
@@ -118,7 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupEventListeners() {
         yearSelect.addEventListener('change', (e) => {
-            state.year = parseInt(e.target.value);
+            const newYear = parseInt(e.target.value);
+            // 엑셀에 추가된 인원이 있으면 경고
+            if (excelWorkers.length > 0) {
+                const confirmed = confirm('대상 연도가 변경됩니다.\n저장된 엑셀 근무자 명단이 모두 삭제됩니다.\n\n계속하시겠습니까?');
+                if (!confirmed) {
+                    yearSelect.value = state.year;
+                    return;
+                }
+                excelWorkers = [];
+                excelDataByDate = {};
+                updateExcelWorkersUI();
+            }
+            state.year = newYear;
             state.mode = 'regular';
             updatePersonalSettingsUI();
             setHolidayInputDefaultDate();
@@ -126,7 +152,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         monthPairSelect.addEventListener('change', (e) => {
-            state.monthStart = parseInt(e.target.value);
+            const newMonth = parseInt(e.target.value);
+            // 엑셀에 추가된 인원이 있으면 경고
+            if (excelWorkers.length > 0) {
+                const confirmed = confirm('대상 월이 변경됩니다.\n저장된 엑셀 근무자 명단이 모두 삭제됩니다.\n\n계속하시겠습니까?');
+                if (!confirmed) {
+                    // 되돌리기
+                    monthPairSelect.value = state.monthStart;
+                    return;
+                }
+                // 엑셀 데이터 초기화
+                excelWorkers = [];
+                excelDataByDate = {};
+                updateExcelWorkersUI();
+            }
+            state.monthStart = newMonth;
             state.mode = 'regular';
             updatePersonalSettingsUI();
             setHolidayInputDefaultDate();
@@ -148,6 +188,355 @@ document.addEventListener('DOMContentLoaded', () => {
             // 모드를 기준 근무일로 변경
             state.mode = 'regular';
             renderAll();
+        });
+
+        // 엑셀 패널 토글
+        excelToggleBtn.addEventListener('click', () => {
+            const isHidden = excelPanel.classList.contains('hidden');
+            if (isHidden) {
+                excelPanel.classList.remove('hidden');
+                excelPanel.classList.add('flex');
+                excelToggleArrow.textContent = '▲';
+            } else {
+                excelPanel.classList.add('hidden');
+                excelPanel.classList.remove('flex');
+                excelToggleArrow.textContent = '▼';
+            }
+        });
+
+        // 이름 입력 후 엔터키로 명단에 추가
+        workerNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addExcelBtn.click();
+            }
+        });
+
+        // 엑셀 명단에 추가
+        addExcelBtn.addEventListener('click', () => {
+            // 기준 근무일 모드에서는 입력 차단
+            if (state.mode === 'regular') {
+                alert('먼저 공무직 휴관일 달력을 설정한 뒤 확인하기 버튼을 눌러주세요.\n기준 근무일 상태에서는 근무자를 추가할 수 없습니다.');
+                return;
+            }
+
+            const name = workerNameInput.value.trim();
+            if (!name) {
+                alert('근무자 이름을 입력해주세요.');
+                workerNameInput.focus();
+                return;
+            }
+            if (excelWorkers.includes(name)) {
+                alert('이미 추가된 근무자입니다.');
+                return;
+            }
+
+            // 현재 DOM에 있는 설정값을 state에 반영 (Run을 누르지 않아도 반영되게)
+            if (!state.libraryClosed || state.libraryClosed === '') {
+                alert('공무직 도서관 휴관일을 먼저 선택해주세요.');
+                libraryClosedSelect.focus();
+                return;
+            }
+            
+            const rows = document.querySelectorAll('.personal-month-row');
+            rows.forEach(row => {
+                const key = row.dataset.key;
+                const weekday = parseInt(row.querySelector('.weekday-sel').value);
+                const weekend = parseInt(row.querySelector('.weekend-sel').value);
+                state.personalSettings[key] = { weekday, weekend };
+            });
+
+            // 인원 추가
+            excelWorkers.push(name);
+            updateExcelWorkersUI();
+            workerNameInput.value = '';
+
+            // 1, 2월 달력의 모든 날짜를 순회하며 이 근무자의 근무일을 기록
+            for (let calIndex = 1; calIndex <= 2; calIndex++) {
+                const month = calIndex === 1 ? state.monthStart : state.monthStart + 1;
+                const year = state.year;
+                const lastDay = new Date(year, month, 0).getDate();
+
+                for (let d = 1; d <= lastDay; d++) {
+                    const date = new Date(year, month - 1, d);
+                    const dateStr = formatDate(date);
+                    const info = getPublicOfficialDayInfo(date);
+
+                    if (!excelDataByDate[dateStr]) {
+                        excelDataByDate[dateStr] = { workers: [], isClosed: false, holidayName: null };
+                    }
+
+                    if (info.isHoliday) {
+                        excelDataByDate[dateStr].holidayName = info.reason;
+                    } else if (info.reason === '도서관휴무') {
+                        excelDataByDate[dateStr].isClosed = true;
+                    } else if (!info.isOff) {
+                        // 근무일인 경우에만 이름 추가
+                        excelDataByDate[dateStr].workers.push(name);
+                    }
+                }
+            }
+        });
+
+        // 엑셀 다운로드
+        downloadExcelBtn.addEventListener('click', async () => {
+            if (excelWorkers.length === 0) {
+                alert('엑셀에 추가된 인원이 없습니다. 먼저 명단에 추가해주세요.');
+                return;
+            }
+
+            downloadExcelBtn.innerHTML = '<span>⏳ 파일 생성 중...</span>';
+            downloadExcelBtn.disabled = true;
+
+            try {
+                // Base64로 인코딩된 템플릿 파일 데이터를 ArrayBuffer로 변환 (CORS 에러 원천 차단)
+                function base64ToArrayBuffer(base64) {
+                    const binary_string = window.atob(base64);
+                    const len = binary_string.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binary_string.charCodeAt(i);
+                    }
+                    return bytes.buffer;
+                }
+
+                if (typeof templateBase64 === 'undefined') {
+                    throw new Error('템플릿 데이터를 찾을 수 없습니다. (template.js 파일 로드 실패)');
+                }
+                const arrayBuffer = base64ToArrayBuffer(templateBase64);
+
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+
+                // 각 근무자별 총 근무일수 계산용
+                const workerTotalDays = {};
+                excelWorkers.forEach(name => { workerTotalDays[name] = 0; });
+
+                // 시트별 lastUsedRow 저장 (크로스시트 수식 참조용)
+                const lastUsedRowPerSheet = [];
+                const sheetNames = [];
+
+                // 기준 근무일 계산 (정직원 평일 기준)
+                let regularWorkDays = 0;
+                for (let ci = 0; ci < 2; ci++) {
+                    const m = ci === 0 ? state.monthStart : state.monthStart + 1;
+                    const ld = new Date(state.year, m, 0).getDate();
+                    for (let d = 1; d <= ld; d++) {
+                        const dt = new Date(state.year, m - 1, d);
+                        const dow = dt.getDay();
+                        if (dow === 0 || dow === 6) continue;
+                        const ds = formatDate(dt);
+                        const isHol = holidays.some(h => h.date === ds);
+                        if (!isHol) regularWorkDays++;
+                    }
+                }
+
+                // 시트 2개 처리 (1번 시트, 2번 시트)
+                for (let i = 0; i < 2; i++) {
+                    const sheet = workbook.worksheets[i];
+                    if (!sheet) continue;
+
+                    const year = state.year;
+                    const month = i === 0 ? state.monthStart : state.monthStart + 1;
+                    const lastDay = new Date(year, month, 0).getDate();
+
+                    // 시트 이름 변경
+                    sheet.name = `${year.toString().slice(-2)}년 ${month}월`;
+                    sheetNames.push(sheet.name);
+
+                    // A1 셀 제목 변경
+                    sheet.getCell('A1').value = `${year}년 ${String(month).padStart(2, '0')}월 노을빛도서관 야간근무 편성표`;
+
+                    // 기존 데이터 모두 지우기 (6행~17행, C~I열)
+                    for (let r = 6; r <= 17; r++) {
+                        for (let c = 3; c <= 9; c++) {
+                            const cell = sheet.getCell(r, c);
+                            cell.value = null;
+                        }
+                    }
+
+                    // 해당 월의 날짜를 동적으로 계산하여 셀에 배치
+                    let currentRow = 6;
+                    let maxRowUsed = 6; // 실제 사용된 마지막 일자 행
+                    for (let d = 1; d <= lastDay; d++) {
+                        const date = new Date(year, month - 1, d);
+                        const dayOfWeek = date.getDay(); // 0:일, 1:월, ... 6:토
+                        const colIdx = (dayOfWeek === 0) ? 9 : dayOfWeek + 2; // 월:3 ~ 일:9
+
+                        // 날짜 입력
+                        const dateCell = sheet.getCell(currentRow, colIdx);
+                        dateCell.value = new Date(Date.UTC(year, month - 1, d));
+
+                        // 근무자 입력 (바로 아래 셀)
+                        const workerCell = sheet.getCell(currentRow + 1, colIdx);
+                        const dateStr = formatDate(date);
+                        const data = excelDataByDate[dateStr];
+
+                        if (data) {
+                            const existingBorder = workerCell.border;
+                            if (data.holidayName) {
+                                workerCell.value = data.holidayName;
+                                workerCell.style = {
+                                    font: { color: { argb: 'FFFF0000' }, bold: true, size: 10 },
+                                    alignment: { vertical: 'middle', horizontal: 'center' },
+                                    border: existingBorder
+                                };
+                            } else if (data.isClosed) {
+                                workerCell.value = '휴관일';
+                                workerCell.style = {
+                                    font: { color: { argb: 'FFFF0000' }, bold: true, size: 10 },
+                                    alignment: { vertical: 'middle', horizontal: 'center' },
+                                    border: existingBorder
+                                };
+                            } else {
+                                const workersText = formatWorkersForExcel(data.workers);
+                                workerCell.value = workersText;
+                                workerCell.style = {
+                                    font: { color: { argb: 'FF000000' }, size: 10 },
+                                    alignment: { wrapText: true, vertical: 'middle', horizontal: 'center' },
+                                    border: existingBorder
+                                };
+                            }
+                        }
+
+                        maxRowUsed = currentRow;
+
+                        // 일요일(9열)을 채웠으면 다음 주로 이동 (2줄 아래로)
+                        if (colIdx === 9) {
+                            currentRow += 2;
+                        }
+                    }
+
+                    // 근무자 행 높이 자동 조절 (줄바꿈 수에 따라)
+                    const baseRowHeight = 18; // 1줄일 때 기본 높이
+                    const lineHeight = 15;    // 추가 줄당 높이
+                    for (let wr = 7; wr <= maxRowUsed + 1; wr += 2) {
+                        let maxLines = 1;
+                        for (let c = 3; c <= 9; c++) {
+                            const val = sheet.getCell(wr, c).value;
+                            if (val && typeof val === 'string') {
+                                const lines = val.split('\n').length;
+                                if (lines > maxLines) maxLines = lines;
+                            }
+                        }
+                        if (maxLines > 1) {
+                            sheet.getRow(wr).height = baseRowHeight + (maxLines - 1) * lineHeight;
+                        }
+                    }
+
+                    // 미사용 주차 행 삭제 (템플릿은 6주 = 6행~17행, 사용된 마지막 일자행 이후의 행 삭제)
+                    // maxRowUsed: 마지막으로 사용된 일자행, maxRowUsed+1: 근무자행
+                    const lastUsedRow = maxRowUsed + 1; // 근무자 행까지 포함
+                    const templateLastRow = 17; // 템플릿 6주차 근무자 행 (16:일자, 17:근무자)
+                    lastUsedRowPerSheet.push(lastUsedRow); // 크로스시트 참조용 저장
+
+                    if (lastUsedRow < templateLastRow) {
+                        // 미사용 행의 내용과 병합 영역 정리
+                        for (let r = lastUsedRow + 1; r <= templateLastRow; r++) {
+                            for (let c = 1; c <= 9; c++) {
+                                sheet.getCell(r, c).value = '';
+                            }
+                        }
+                        // 행 자체를 삭제 (아래에서 위로 삭제해야 인덱스가 안 꼬임)
+                        const rowsToDelete = templateLastRow - lastUsedRow;
+                        for (let r = 0; r < rowsToDelete; r++) {
+                            sheet.spliceRows(lastUsedRow + 1, 1);
+                        }
+                    }
+                    // ===== 해당 월의 기준 근무일 수 계산 (하드코딩 - 셀 수 없으므로) =====
+                    let monthRegularDays = 0;
+                    for (let d = 1; d <= lastDay; d++) {
+                        const dt = new Date(year, month - 1, d);
+                        const dow = dt.getDay();
+                        const ds = formatDate(dt);
+                        const isHol = holidays.some(h => h.date === ds);
+                        if (dow !== 0 && dow !== 6 && !isHol) monthRegularDays++;
+                    }
+
+                    // ===== 해당 월 근무일 합계를 달력 아래 A열에 작성 (SUMPRODUCT 수식 사용) =====
+                    // 근무자 셀 범위: C7:I{lastUsedRow} (worker rows)
+                    const workerRange = `C7:I${lastUsedRow}`;
+
+                    // 요약 시작 행: 현재 시트의 마지막 행 + 4 (3칸 띄우기)
+                    const monthlySummaryStart = sheet.rowCount + 4;
+                    let msr = monthlySummaryStart;
+
+                    // 헤더
+                    sheet.getCell(msr, 1).value = `${month}월 근무일수`;
+                    sheet.getCell(msr, 1).font = { bold: true, size: 11 };
+                    msr++;
+
+                    // 각 근무자: SUMPRODUCT로 이름 등장 횟수 계산 (셀 내 여러 명 포함 대응)
+                    excelWorkers.forEach(n => {
+                        sheet.getCell(msr, 1).value = n;
+                        sheet.getCell(msr, 1).font = { bold: true, size: 10 };
+                        // 이름이 셀에 포함된 횟수를 SUMPRODUCT로 계산
+                        const formula = `=SUMPRODUCT((LEN(${workerRange})-LEN(SUBSTITUTE(${workerRange},"${n}","")))/LEN("${n}"))&"일"`;
+                        sheet.getCell(msr, 2).value = { formula };
+                        sheet.getCell(msr, 2).font = { size: 10 };
+                        msr++;
+                    });
+
+                    // 기준 근무일 (하드코딩 - 계산 불가이므로)
+                    msr++;
+                    sheet.getCell(msr, 1).value = '기준 근무일';
+                    sheet.getCell(msr, 1).font = { bold: true, size: 10 };
+                    sheet.getCell(msr, 2).value = `${monthRegularDays}일`;
+                    sheet.getCell(msr, 2).font = { bold: true, size: 10 };
+
+                    // ===== 마지막 시트(i===1)에 H열로 2개월 합산 총계 추가 (크로스시트 SUMPRODUCT) =====
+                    if (i === 1) {
+                        const sheet0Name = sheetNames[0];
+                        const lastRow0 = lastUsedRowPerSheet[0];
+                        const workerRange0 = `'${sheet0Name}'!C7:I${lastRow0}`;
+                        const workerRange1 = `C7:I${lastUsedRow}`;
+
+                        const totalStartRow = monthlySummaryStart;
+                        let tsr = totalStartRow;
+
+                        // 헤더
+                        sheet.getCell(tsr, 8).value = '총 근무일수 합계';
+                        sheet.getCell(tsr, 8).font = { bold: true, size: 11 };
+                        tsr++;
+
+                        // 각 근무자: 두 시트 합산 SUMPRODUCT
+                        excelWorkers.forEach(n => {
+                            sheet.getCell(tsr, 8).value = n;
+                            sheet.getCell(tsr, 8).font = { bold: true, size: 10 };
+                            const totalFormula =
+                                `=SUMPRODUCT((LEN(${workerRange0})-LEN(SUBSTITUTE(${workerRange0},"${n}","")))/LEN("${n}"))` +
+                                `+SUMPRODUCT((LEN(${workerRange1})-LEN(SUBSTITUTE(${workerRange1},"${n}","")))/LEN("${n}"))&"일"`;
+                            sheet.getCell(tsr, 9).value = { formula: totalFormula };
+                            sheet.getCell(tsr, 9).font = { size: 10 };
+                            tsr++;
+                        });
+
+                        // 기준 근무일 합산 (하드코딩)
+                        tsr++;
+                        sheet.getCell(tsr, 8).value = '기준 근무일 (2개월)';
+                        sheet.getCell(tsr, 8).font = { bold: true, size: 10 };
+                        sheet.getCell(tsr, 9).value = `${regularWorkDays}일`;
+                        sheet.getCell(tsr, 9).font = { bold: true, size: 10 };
+                    }
+                }
+
+                // 파일 다운로드
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${state.year.toString().slice(-2)}년 ${state.monthStart}월,${state.monthStart+1}월 근무 편성표.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error(error);
+                alert('엑셀 파일을 생성하는 중 오류가 발생했습니다.');
+            } finally {
+                downloadExcelBtn.innerHTML = '<span>📥 최종 엑셀 파일 다운로드</span>';
+                downloadExcelBtn.disabled = false;
+            }
         });
 
         runBtn.addEventListener('click', () => {
@@ -226,6 +615,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 holidayNameInput.value = '';
             }
         });
+    }
+
+    function updateExcelWorkersUI() {
+        excelCountEl.innerText = excelWorkers.length;
+        excelWorkersList.innerHTML = '';
+        excelWorkers.forEach((name, idx) => {
+            const span = document.createElement('span');
+            span.className = 'bg-teal-700 text-teal-50 px-2 py-0.5 rounded border border-teal-500 text-[11px] font-bold flex items-center gap-1 shadow-sm';
+            span.innerHTML = `${name} <button onclick="window.removeExcelWorker('${name}')" class="text-teal-300 hover:text-white transition-colors">&times;</button>`;
+            excelWorkersList.appendChild(span);
+        });
+    }
+
+    window.removeExcelWorker = function(nameToRemove) {
+        excelWorkers = excelWorkers.filter(n => n !== nameToRemove);
+        
+        // 엑셀 데이터에서도 해당 근무자 이름 삭제
+        for (const dateStr in excelDataByDate) {
+            excelDataByDate[dateStr].workers = excelDataByDate[dateStr].workers.filter(w => w !== nameToRemove);
+        }
+        
+        updateExcelWorkersUI();
+    };
+
+    function formatWorkersForExcel(workers) {
+        if (!workers || workers.length === 0) return '';
+        let result = [];
+        for (let i = 0; i < workers.length; i += 2) {
+            if (i + 1 < workers.length) {
+                result.push(`${workers[i]},${workers[i+1]}`);
+            } else {
+                result.push(workers[i]);
+            }
+        }
+        return result.join('\n');
     }
 
     function renderHolidayList() {
