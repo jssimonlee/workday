@@ -2,6 +2,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEFAULT_LIBRARY_NAME = '노을빛도서관';
     const SCHEDULE_START_COLUMN = 2;
     const SCHEDULE_END_COLUMN = 8;
+    const ROOM_SETTING_OPTIONS = ['종합자료실', '어린이실', '유아실', '장난감실'];
+    const SHIFT_SETTING_OPTIONS = ['주간', '야간'];
+    const CUSTOM_ROOM_SETTING_VALUE = '__custom__';
 
     let holidays = [];
     let deletedDefaults = [];
@@ -9,11 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let excelWorkers = [];
     let excelDataByDate = {};
+    let excelWorkerDetails = {};
     let isExcelExporting = false;
     let excelExportOptions = {
         libraryName: '',
         showOffWorkers: false,
-        showDetailedSettings: false
+        showDetailedSettings: false,
+        useRoomSettings: true,
+        useShiftSettings: true
     };
 
     const state = {
@@ -49,6 +55,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const excelLibraryNameInput = document.getElementById('excel-library-name-input');
     const excelShowOffWorkersInput = document.getElementById('excel-show-off-workers');
     const excelShowDetailSettingsInput = document.getElementById('excel-show-detail-settings');
+    const excelDetailSettingsSection = document.getElementById('excel-detail-settings-section');
+    const excelEnableRoomSettingsInput = document.getElementById('excel-enable-room-settings');
+    const excelEnableShiftSettingsInput = document.getElementById('excel-enable-shift-settings');
+    const excelDetailSettingsNote = document.getElementById('excel-detail-settings-note');
+    const excelDetailSettingsEmpty = document.getElementById('excel-detail-settings-empty');
+    const excelDetailSettingsTable = document.getElementById('excel-detail-settings-table');
+    const excelDetailSettingsHead = document.getElementById('excel-detail-settings-head');
+    const excelDetailSettingsBody = document.getElementById('excel-detail-settings-body');
 
     const holidayModal = document.getElementById('holiday-modal');
     const openHolidayModalBtn = document.getElementById('open-holiday-modal-btn');
@@ -59,7 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const holidayListUl = document.getElementById('holiday-list');
 
     const alertModal = document.getElementById('alert-modal');
+    const alertModalIcon = document.getElementById('alert-modal-icon');
+    const alertModalTitle = document.getElementById('alert-modal-title');
+    const alertModalMessage = document.getElementById('alert-modal-message');
     const closeAlertBtn = document.getElementById('close-alert-btn');
+
+    const roomInputModal = document.getElementById('room-input-modal');
+    const closeRoomInputModalBtn = document.getElementById('close-room-input-modal-btn');
+    const cancelRoomInputModalBtn = document.getElementById('cancel-room-input-modal-btn');
+    const confirmRoomInputModalBtn = document.getElementById('confirm-room-input-modal-btn');
+    const roomInputField = document.getElementById('room-input-field');
+
+    let alertModalOnClose = null;
+    let roomInputModalResolver = null;
 
     loadHolidaysAndSettings();
     initDefaults();
@@ -134,6 +160,219 @@ document.addEventListener('DOMContentLoaded', () => {
         holidayDateInput.value = `${state.year}-${String(state.monthStart).padStart(2, '0')}-01`;
     }
 
+    function shiftYearMonth(year, month, delta) {
+        let nextYear = year;
+        let nextMonth = month + delta;
+
+        while (nextMonth < 1) {
+            nextMonth += 12;
+            nextYear -= 1;
+        }
+
+        while (nextMonth > 12) {
+            nextMonth -= 12;
+            nextYear += 1;
+        }
+
+        return { year: nextYear, month: nextMonth };
+    }
+
+    function getExcelDetailSettingKey(year, month) {
+        return `${year}-${month}`;
+    }
+
+    function getExcelDetailMonthConfigs() {
+        const previous = shiftYearMonth(state.year, state.monthStart, -1);
+        const current = { year: state.year, month: state.monthStart };
+        const next = shiftYearMonth(state.year, state.monthStart, 1);
+
+        return [
+            {
+                key: getExcelDetailSettingKey(previous.year, previous.month),
+                label: `${previous.month}월(이전)`,
+                year: previous.year,
+                month: previous.month,
+                isReference: true
+            },
+            {
+                key: getExcelDetailSettingKey(current.year, current.month),
+                label: `${current.month}월`,
+                year: current.year,
+                month: current.month,
+                isReference: false
+            },
+            {
+                key: getExcelDetailSettingKey(next.year, next.month),
+                label: `${next.month}월`,
+                year: next.year,
+                month: next.month,
+                isReference: false
+            }
+        ];
+    }
+
+    function createDefaultExcelWorkerDetail() {
+        return {
+            weekdayRoom: '',
+            weekendRoom: '',
+            shift: ''
+        };
+    }
+
+    function isRoomDetailType(detailType) {
+        return detailType === 'room' || detailType === 'weekdayRoom' || detailType === 'weekendRoom';
+    }
+
+    function getExcelWorkerDetailFieldValue(detail, fieldKey) {
+        if (!detail) {
+            return '';
+        }
+
+        if (fieldKey === 'weekdayRoom') {
+            return detail.weekdayRoom || detail.room || '';
+        }
+
+        if (fieldKey === 'weekendRoom') {
+            return detail.weekendRoom || detail.weekdayRoom || detail.room || '';
+        }
+
+        return detail[fieldKey] || '';
+    }
+
+    function ensureExcelWorkerDetailSettings(name) {
+        if (!excelWorkerDetails[name]) {
+            excelWorkerDetails[name] = {};
+        }
+
+        getExcelDetailMonthConfigs().forEach(({ key }) => {
+            if (!excelWorkerDetails[name][key]) {
+                excelWorkerDetails[name][key] = createDefaultExcelWorkerDetail();
+            }
+        });
+    }
+
+    function ensureAllExcelWorkerDetailSettings() {
+        excelWorkers.forEach((name) => {
+            ensureExcelWorkerDetailSettings(name);
+        });
+    }
+
+    function getExcelWorkerDetail(name, year, month) {
+        const detailKey = getExcelDetailSettingKey(year, month);
+        return excelWorkerDetails[name]?.[detailKey] || null;
+    }
+
+    function resetExcelWorkerData() {
+        excelWorkers = [];
+        excelDataByDate = {};
+        excelWorkerDetails = {};
+        updateExcelWorkersUI();
+    }
+
+    function getActiveExcelDetailSettingColumns() {
+        const columns = [];
+
+        if (excelEnableRoomSettingsInput.checked) {
+            columns.push({ key: 'weekdayRoom', label: '평일자료실' });
+        }
+
+        if (excelEnableShiftSettingsInput.checked) {
+            columns.push({ key: 'shift', label: '주야간' });
+        }
+
+        if (excelEnableRoomSettingsInput.checked) {
+            columns.push({ key: 'weekendRoom', label: '주말자료실' });
+        }
+
+        return columns;
+    }
+
+    function closeAlertModal() {
+        alertModal.classList.add('hidden');
+        alertModal.classList.remove('flex');
+
+        const onClose = alertModalOnClose;
+        alertModalOnClose = null;
+        if (typeof onClose === 'function') {
+            onClose();
+        }
+    }
+
+    function openAlertModal(options = {}) {
+        const {
+            title = '안내',
+            message = '',
+            icon = '🔔',
+            tone = 'info',
+            onClose = null
+        } = options;
+
+        const toneClassMap = {
+            info: {
+                iconWrap: ['bg-blue-50', 'text-blue-500', 'border-blue-100'],
+                button: ['from-blue-500', 'to-indigo-500', 'hover:from-blue-600', 'hover:to-indigo-600', 'shadow-blue-500/30']
+            },
+            warning: {
+                iconWrap: ['bg-amber-50', 'text-amber-500', 'border-amber-100'],
+                button: ['from-amber-500', 'to-orange-500', 'hover:from-amber-600', 'hover:to-orange-600', 'shadow-orange-500/30']
+            },
+            danger: {
+                iconWrap: ['bg-rose-50', 'text-rose-500', 'border-rose-100'],
+                button: ['from-rose-500', 'to-red-500', 'hover:from-rose-600', 'hover:to-red-600', 'shadow-rose-500/30']
+            }
+        };
+
+        const currentTone = toneClassMap[tone] || toneClassMap.info;
+        const allIconClasses = ['bg-blue-50', 'text-blue-500', 'border-blue-100', 'bg-amber-50', 'text-amber-500', 'border-amber-100', 'bg-rose-50', 'text-rose-500', 'border-rose-100'];
+        const allButtonClasses = ['from-blue-500', 'to-indigo-500', 'hover:from-blue-600', 'hover:to-indigo-600', 'shadow-blue-500/30', 'from-amber-500', 'to-orange-500', 'hover:from-amber-600', 'hover:to-orange-600', 'shadow-orange-500/30', 'from-rose-500', 'to-red-500', 'hover:from-rose-600', 'hover:to-red-600', 'shadow-rose-500/30'];
+
+        alertModalIcon.classList.remove(...allIconClasses);
+        alertModalIcon.classList.add(...currentTone.iconWrap);
+        closeAlertBtn.classList.remove(...allButtonClasses);
+        closeAlertBtn.classList.add(...currentTone.button);
+
+        alertModalIcon.textContent = icon;
+        alertModalTitle.textContent = title;
+        alertModalMessage.textContent = message;
+        alertModalOnClose = onClose;
+
+        alertModal.classList.remove('hidden');
+        alertModal.classList.add('flex');
+        requestAnimationFrame(() => {
+            closeAlertBtn.focus();
+        });
+    }
+
+    function closeRoomInputModal(result = null) {
+        roomInputModal.classList.add('hidden');
+        roomInputModal.classList.remove('flex');
+
+        const resolver = roomInputModalResolver;
+        roomInputModalResolver = null;
+        if (typeof resolver === 'function') {
+            resolver(result);
+        }
+    }
+
+    function openRoomInputModal(initialValue = '') {
+        if (roomInputModalResolver) {
+            closeRoomInputModal(null);
+        }
+
+        roomInputField.value = initialValue;
+        roomInputModal.classList.remove('hidden');
+        roomInputModal.classList.add('flex');
+
+        requestAnimationFrame(() => {
+            roomInputField.focus();
+            roomInputField.select();
+        });
+
+        return new Promise((resolve) => {
+            roomInputModalResolver = resolve;
+        });
+    }
+
     function syncPersonalSettingsFromUI() {
         const rows = document.querySelectorAll('.personal-month-row');
         rows.forEach((row) => {
@@ -186,9 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     yearSelect.value = state.year;
                     return;
                 }
-                excelWorkers = [];
-                excelDataByDate = {};
-                updateExcelWorkersUI();
+                resetExcelWorkerData();
             }
 
             state.year = newYear;
@@ -205,9 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     monthPairSelect.value = state.monthStart;
                     return;
                 }
-                excelWorkers = [];
-                excelDataByDate = {};
-                updateExcelWorkersUI();
+                resetExcelWorkerData();
             }
 
             state.monthStart = newMonth;
@@ -259,29 +494,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addExcelBtn.addEventListener('click', () => {
             if (state.mode === 'regular') {
-                alert('먼저 공무직 휴관일 달력을 설정한 뒤 확인하기 버튼을 눌러주세요.\n기준 근무일 상태에서는 근무자를 추가할 수 없습니다.');
+                openAlertModal({
+                    title: '근무자 추가 안내',
+                    message: '먼저 공무직 휴관일 달력을 설정한 뒤 확인하기 버튼을 눌러주세요.\n기준 근무일 상태에서는 근무자를 추가할 수 없습니다.',
+                    icon: '🔔',
+                    tone: 'info'
+                });
                 return;
             }
 
             const name = workerNameInput.value.trim();
             if (!name) {
-                alert('근무자 이름을 입력해주세요.');
-                workerNameInput.focus();
+                openAlertModal({
+                    title: '입력 확인',
+                    message: '근무자 이름을 입력해주세요.',
+                    icon: '✏️',
+                    tone: 'warning',
+                    onClose: () => {
+                        workerNameInput.focus();
+                    }
+                });
                 return;
             }
             if (excelWorkers.includes(name)) {
-                alert('이미 추가된 근무자입니다.');
+                openAlertModal({
+                    title: '중복된 근무자',
+                    message: '이미 추가된 근무자입니다.',
+                    icon: '⚠️',
+                    tone: 'warning'
+                });
                 return;
             }
             if (!state.libraryClosed) {
-                alert('공무직 도서관 휴관일을 먼저 선택해주세요.');
-                libraryClosedSelect.focus();
+                openAlertModal({
+                    title: '휴관일 선택 안내',
+                    message: '공무직 도서관 휴관일을 먼저 선택해 주세요.\n해당 사항이 없다면 "없음"을 선택하세요.',
+                    icon: '🔔',
+                    tone: 'info',
+                    onClose: () => {
+                        libraryClosedSelect.focus();
+                    }
+                });
                 return;
             }
 
             syncPersonalSettingsFromUI();
 
             excelWorkers.push(name);
+            ensureExcelWorkerDetailSettings(name);
             updateExcelWorkersUI();
             workerNameInput.value = '';
 
@@ -312,7 +572,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         downloadExcelBtn.addEventListener('click', () => {
             if (excelWorkers.length === 0) {
-                alert('엑셀에 추가된 인원이 없습니다. 먼저 명단에 추가해주세요.');
+                openAlertModal({
+                    title: '엑셀 명단 확인',
+                    message: '엑셀에 추가된 인원이 없습니다. 먼저 명단에 추가해주세요.',
+                    icon: '📋',
+                    tone: 'warning'
+                });
                 return;
             }
 
@@ -332,7 +597,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error(error);
                 setExcelExportLoadingState(false);
-                alert('엑셀 파일을 생성하는 중 오류가 발생했습니다.');
+                openAlertModal({
+                    title: '엑셀 생성 오류',
+                    message: '엑셀 파일을 생성하는 중 오류가 발생했습니다.',
+                    icon: '⚠️',
+                    tone: 'danger'
+                });
             }
         });
 
@@ -357,15 +627,79 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        excelShowDetailSettingsInput.addEventListener('change', () => {
+            if (excelShowDetailSettingsInput.checked) {
+                ensureAllExcelWorkerDetailSettings();
+            }
+            renderExcelDetailSettingsPanel();
+        });
+
+        excelEnableRoomSettingsInput.addEventListener('change', () => {
+            renderExcelDetailSettingsPanel();
+        });
+
+        excelEnableShiftSettingsInput.addEventListener('change', () => {
+            renderExcelDetailSettingsPanel();
+        });
+
+        excelDetailSettingsBody.addEventListener('change', async (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLSelectElement)) {
+                return;
+            }
+
+            const workerIndex = parseInt(target.dataset.workerIndex, 10);
+            const monthKey = target.dataset.monthKey;
+            const detailType = target.dataset.detailType;
+            const normalizedDetailType = detailType === 'room' ? 'weekdayRoom' : detailType;
+            const workerName = excelWorkers[workerIndex];
+
+            if (!workerName || !monthKey || !normalizedDetailType) {
+                return;
+            }
+
+            ensureExcelWorkerDetailSettings(workerName);
+            const detail = excelWorkerDetails[workerName][monthKey];
+
+            if (isRoomDetailType(normalizedDetailType)) {
+                if (target.value === CUSTOM_ROOM_SETTING_VALUE) {
+                    const currentValue = getExcelWorkerDetailFieldValue(detail, normalizedDetailType);
+                    const initialValue = currentValue && !ROOM_SETTING_OPTIONS.includes(currentValue) ? currentValue : currentValue;
+                    const customValue = await openRoomInputModal(initialValue);
+                    if (customValue === null) {
+                        renderExcelDetailSettingsPanel();
+                        return;
+                    }
+
+                    detail[normalizedDetailType] = customValue.trim();
+                } else {
+                    detail[normalizedDetailType] = target.value;
+                }
+
+                renderExcelDetailSettingsPanel();
+                return;
+            }
+
+            if (normalizedDetailType === 'shift') {
+                detail.shift = target.value;
+            }
+        });
+
         runBtn.addEventListener('click', () => {
             if (!state.libraryClosed) {
-                alertModal.classList.remove('hidden');
-                alertModal.classList.add('flex');
-                libraryClosedSelect.focus();
-                libraryClosedSelect.classList.add('ring-4', 'ring-blue-200', 'border-blue-500');
-                setTimeout(() => {
-                    libraryClosedSelect.classList.remove('ring-4', 'ring-blue-200', 'border-blue-500');
-                }, 1500);
+                openAlertModal({
+                    title: '휴관일 선택 안내',
+                    message: '공무직 도서관 휴관일을 먼저 선택해 주세요.\n해당 사항이 없다면 "없음"을 선택하세요.',
+                    icon: '🔔',
+                    tone: 'info',
+                    onClose: () => {
+                        libraryClosedSelect.focus();
+                        libraryClosedSelect.classList.add('ring-4', 'ring-blue-200', 'border-blue-500');
+                        setTimeout(() => {
+                            libraryClosedSelect.classList.remove('ring-4', 'ring-blue-200', 'border-blue-500');
+                        }, 1500);
+                    }
+                });
                 return;
             }
 
@@ -396,14 +730,42 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         closeAlertBtn.addEventListener('click', () => {
-            alertModal.classList.add('hidden');
-            alertModal.classList.remove('flex');
+            closeAlertModal();
+        });
+
+        closeRoomInputModalBtn.addEventListener('click', () => {
+            closeRoomInputModal(null);
+        });
+
+        cancelRoomInputModalBtn.addEventListener('click', () => {
+            closeRoomInputModal(null);
+        });
+
+        confirmRoomInputModalBtn.addEventListener('click', () => {
+            closeRoomInputModal(roomInputField.value);
         });
 
         alertModal.addEventListener('click', (e) => {
             if (e.target === alertModal) {
-                alertModal.classList.add('hidden');
-                alertModal.classList.remove('flex');
+                closeAlertModal();
+            }
+        });
+
+        roomInputModal.addEventListener('click', (e) => {
+            if (e.target === roomInputModal) {
+                closeRoomInputModal(null);
+            }
+        });
+
+        roomInputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                closeRoomInputModal(roomInputField.value);
+            }
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeRoomInputModal(null);
             }
         });
 
@@ -414,7 +776,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const nameStr = holidayNameInput.value;
 
             if (holidays.find((holiday) => holiday.date === dateStr)) {
-                alert('이미 등록된 휴일 날짜입니다.');
+                openAlertModal({
+                    title: '휴일 중복 안내',
+                    message: '이미 등록된 휴일 날짜입니다.',
+                    icon: '📅',
+                    tone: 'warning'
+                });
                 return;
             }
 
@@ -459,74 +826,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const year = state.year;
             const month = index === 0 ? state.monthStart : state.monthStart + 1;
-            const lastDay = new Date(year, month, 0).getDate();
             const showOffWorkers = exportOptions.showOffWorkers;
-            const rowStride = showOffWorkers ? 3 : 2;
-            const templateLastRow = 17 + (showOffWorkers ? 6 : 0);
-
-            if (showOffWorkers) {
-                ensureOffWorkerRows(sheet);
-            }
-
-            normalizeScheduleLabelRows(sheet, showOffWorkers);
-
-            clearScheduleArea(sheet, templateLastRow);
 
             sheet.name = `${year.toString().slice(-2)}년 ${month}월`;
             sheet.getCell('A1').value = `${year}년 ${String(month).padStart(2, '0')}월 ${libraryName} 야간근무 편성표`;
             replaceLibraryNameInSheet(sheet, libraryName);
 
             const monthlyWorkerDays = createWorkerCountMap();
-            let currentRow = 6;
-            let lastUsedRow = showOffWorkers ? 8 : 7;
+            clearScheduleArea(sheet, 17);
 
-            for (let day = 1; day <= lastDay; day++) {
-                const date = new Date(year, month - 1, day);
-                const dateStr = formatDate(date);
-                const dayOfWeek = date.getDay();
-                const colIdx = dayOfWeek === 0 ? SCHEDULE_END_COLUMN : dayOfWeek + 1;
-                const dayData = getExcelDateData(dateStr, showOffWorkers);
+            const { lastUsedRow, scheduleEndRow } = writeMonthlyScheduleArea(
+                sheet,
+                year,
+                month,
+                exportOptions,
+                showOffWorkers,
+                monthlyWorkerDays,
+                totalWorkerDays
+            );
 
-                sheet.getCell(currentRow, colIdx).value = new Date(Date.UTC(year, month - 1, day));
-
-                const workerCell = sheet.getCell(currentRow + 1, colIdx);
-                if (dayData.holidayName) {
-                    writeScheduleTextCell(workerCell, dayData.holidayName, { color: 'FFFF0000', bold: true });
-                } else if (dayData.isClosed) {
-                    writeScheduleTextCell(workerCell, '휴관일', { color: 'FFFF0000', bold: true });
-                } else {
-                    writeScheduleTextCell(workerCell, formatWorkersForExcel(dayData.workers));
-                }
-
-                dayData.workers.forEach((name) => {
-                    monthlyWorkerDays[name]++;
-                    totalWorkerDays[name]++;
-                });
-
-                if (showOffWorkers) {
-                    writeScheduleTextCell(
-                        sheet.getCell(currentRow + 2, colIdx),
-                        formatWorkersForExcel(dayData.offWorkers),
-                        { color: 'FF000000' }
-                    );
-                }
-
-                lastUsedRow = currentRow + (showOffWorkers ? 2 : 1);
-                if (colIdx === SCHEDULE_END_COLUMN) {
-                    currentRow += rowStride;
-                }
-            }
-
-            adjustScheduleRowHeights(sheet, lastUsedRow, showOffWorkers, rowStride);
-
-            if (lastUsedRow < templateLastRow) {
-                for (let row = lastUsedRow + 1; row <= templateLastRow; row++) {
+            if (lastUsedRow < scheduleEndRow) {
+                for (let row = lastUsedRow + 1; row <= scheduleEndRow; row++) {
                     for (let col = 1; col <= 9; col++) {
                         sheet.getCell(row, col).value = '';
                     }
                 }
 
-                const rowsToDelete = templateLastRow - lastUsedRow;
+                const rowsToDelete = scheduleEndRow - lastUsedRow;
                 for (let count = 0; count < rowsToDelete; count++) {
                     sheet.spliceRows(lastUsedRow + 1, 1);
                 }
@@ -642,6 +968,364 @@ document.addEventListener('DOMContentLoaded', () => {
             acc[name] = 0;
             return acc;
         }, {});
+    }
+
+    function getRoomSettingSortOrder(roomValue) {
+        if (roomValue === '종합자료실') return 0;
+        if (roomValue === '어린이실') return 1;
+        if (roomValue === '유아실') return 2;
+        return 3;
+    }
+
+    function getShiftSettingSortOrder(shiftValue) {
+        if (shiftValue === '주간') return 0;
+        if (shiftValue === '야간') return 1;
+        return 2;
+    }
+
+    function isWeekendDate(date) {
+        const day = date.getDay();
+        return day === 0 || day === 6;
+    }
+
+    function shouldUseDetailedScheduleRows(exportOptions) {
+        return !!(exportOptions.showDetailedSettings && (exportOptions.useRoomSettings || exportOptions.useShiftSettings));
+    }
+
+    function createDefaultScheduleGroup(options = {}) {
+        const {
+            includeWorkers = true,
+            workers = [],
+            useDetailedLabel = false
+        } = options;
+
+        return {
+            key: '__default__',
+            label: useDetailedLabel ? '' : '근무자',
+            ...(includeWorkers ? { workers: [...workers] } : {}),
+            roomSort: 99,
+            shiftSort: 99,
+            originalIndex: 0
+        };
+    }
+
+    function getExcelWorkerDetailValues(name, year, month) {
+        const detail = getExcelWorkerDetail(name, year, month);
+        const weekdayRoom = getExcelWorkerDetailFieldValue(detail, 'weekdayRoom').trim();
+        const weekendRoom = getExcelWorkerDetailFieldValue(detail, 'weekendRoom').trim() || weekdayRoom;
+        const shiftValue = getExcelWorkerDetailFieldValue(detail, 'shift').trim();
+
+        return {
+            detail,
+            weekdayRoom,
+            weekendRoom,
+            shiftValue
+        };
+    }
+
+    function buildWeekendRoomLabelMap(weekDays, year, month, exportOptions) {
+        const weekendRoomLabelMap = new Map();
+
+        if (!(exportOptions.showDetailedSettings && exportOptions.useRoomSettings && exportOptions.useShiftSettings)) {
+            return weekendRoomLabelMap;
+        }
+
+        weekDays.forEach(({ dateStr, date }) => {
+            if (isWeekendDate(date)) {
+                return;
+            }
+
+            const dayData = getExcelDateData(dateStr, false);
+            dayData.workers.forEach((name) => {
+                const { weekdayRoom, shiftValue } = getExcelWorkerDetailValues(name, year, month);
+                if (weekdayRoom && shiftValue === '주간' && !weekendRoomLabelMap.has(weekdayRoom)) {
+                    weekendRoomLabelMap.set(weekdayRoom, `${weekdayRoom} 주간`);
+                }
+            });
+        });
+
+        return weekendRoomLabelMap;
+    }
+
+    function buildExcelWorkerDisplayInfo(name, year, month, exportOptions, originalIndex, date, weekendRoomLabelMap = new Map()) {
+        const useRoomSettings = exportOptions.showDetailedSettings && exportOptions.useRoomSettings;
+        const useShiftSettings = exportOptions.showDetailedSettings && exportOptions.useShiftSettings;
+        const { weekdayRoom, weekendRoom, shiftValue } = getExcelWorkerDetailValues(name, year, month);
+        const weekend = isWeekendDate(date);
+
+        let roomValue = '';
+        let label = '';
+
+        if (weekend) {
+            roomValue = useRoomSettings ? (weekendRoom || weekdayRoom) : '';
+
+            if (useRoomSettings && roomValue) {
+                label = weekendRoomLabelMap.get(roomValue) || roomValue;
+            } else if (useShiftSettings && shiftValue === '주간') {
+                label = '주간';
+            }
+        } else {
+            const labelParts = [];
+            roomValue = useRoomSettings ? weekdayRoom : '';
+
+            if (useRoomSettings && roomValue) {
+                labelParts.push(roomValue);
+            }
+            if (useShiftSettings && shiftValue) {
+                labelParts.push(shiftValue);
+            }
+
+            label = labelParts.join(' ');
+        }
+
+        const hasConfiguredLabel = !!label;
+        const effectiveShiftSort = label.endsWith('주간') ? 0 : label.endsWith('야간') ? 1 : 99;
+
+        return {
+            name,
+            label: hasConfiguredLabel ? label : '',
+            hasConfiguredLabel,
+            roomSort: hasConfiguredLabel && useRoomSettings ? getRoomSettingSortOrder(roomValue) : 99,
+            shiftSort: hasConfiguredLabel ? effectiveShiftSort : 99,
+            originalIndex
+        };
+    }
+
+    function compareExcelWorkerGroups(left, right) {
+        if (left.roomSort !== right.roomSort) {
+            return left.roomSort - right.roomSort;
+        }
+
+        if (left.shiftSort !== right.shiftSort) {
+            return left.shiftSort - right.shiftSort;
+        }
+
+        return left.originalIndex - right.originalIndex;
+    }
+
+    function getExcelWorkerGroupsForDay(workers, year, month, exportOptions, date, weekendRoomLabelMap = new Map()) {
+        if (!shouldUseDetailedScheduleRows(exportOptions)) {
+            return [createDefaultScheduleGroup({ workers })];
+        }
+
+        if (workers.length === 0) {
+            return [];
+        }
+
+        const groups = new Map();
+
+        workers.forEach((name, index) => {
+            const displayInfo = buildExcelWorkerDisplayInfo(name, year, month, exportOptions, index, date, weekendRoomLabelMap);
+            const groupKey = displayInfo.hasConfiguredLabel ? displayInfo.label : '__default__';
+
+            if (!groups.has(groupKey)) {
+                groups.set(groupKey, {
+                    key: groupKey,
+                    label: displayInfo.label,
+                    workers: [],
+                    roomSort: displayInfo.roomSort,
+                    shiftSort: displayInfo.shiftSort,
+                    originalIndex: displayInfo.originalIndex
+                });
+            }
+
+            const group = groups.get(groupKey);
+            group.workers.push(name);
+            group.originalIndex = Math.min(group.originalIndex, displayInfo.originalIndex);
+        });
+
+        const groupedWorkers = Array.from(groups.values()).sort(compareExcelWorkerGroups);
+        if (groupedWorkers.length > 0) {
+            return groupedWorkers;
+        }
+
+        return [createDefaultScheduleGroup({ workers, useDetailedLabel: true })];
+    }
+
+    function buildWeeklyScheduleRows(weekDays, year, month, exportOptions, weekendRoomLabelMap = new Map()) {
+        const groups = new Map();
+
+        weekDays.forEach(({ dateStr, date }) => {
+            const dayData = getExcelDateData(dateStr, false);
+            getExcelWorkerGroupsForDay(dayData.workers, year, month, exportOptions, date, weekendRoomLabelMap).forEach((group) => {
+                if (!groups.has(group.key)) {
+                    groups.set(group.key, {
+                        key: group.key,
+                        label: group.label,
+                        roomSort: group.roomSort,
+                        shiftSort: group.shiftSort,
+                        originalIndex: group.originalIndex
+                    });
+                }
+            });
+        });
+
+        const weekGroups = Array.from(groups.values()).sort(compareExcelWorkerGroups);
+        if (weekGroups.length > 0) {
+            return weekGroups;
+        }
+
+        return [createDefaultScheduleGroup({ includeWorkers: false, useDetailedLabel: shouldUseDetailedScheduleRows(exportOptions) })];
+    }
+
+    function buildMonthWeekCells(year, month) {
+        const weekBlocks = [];
+        let currentWeek = [];
+        const lastDay = new Date(year, month, 0).getDate();
+
+        for (let day = 1; day <= lastDay; day++) {
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+            const colIdx = dayOfWeek === 0 ? SCHEDULE_END_COLUMN : dayOfWeek + 1;
+
+            currentWeek.push({
+                date,
+                dateStr: formatDate(date),
+                colIdx
+            });
+
+            if (colIdx === SCHEDULE_END_COLUMN) {
+                weekBlocks.push(currentWeek);
+                currentWeek = [];
+            }
+        }
+
+        if (currentWeek.length > 0) {
+            weekBlocks.push(currentWeek);
+        }
+
+        return weekBlocks;
+    }
+
+    function clearScheduleRow(sheet, rowNumber) {
+        for (let col = SCHEDULE_START_COLUMN; col <= SCHEDULE_END_COLUMN; col++) {
+            sheet.getCell(rowNumber, col).value = null;
+        }
+    }
+
+    function writeMergedScheduleTextCell(sheet, startRow, endRow, colIdx, value, options = {}) {
+        if (endRow <= startRow) {
+            writeScheduleTextCell(sheet.getCell(startRow, colIdx), value, options);
+            return;
+        }
+
+        for (let rowNumber = startRow; rowNumber <= endRow; rowNumber++) {
+            sheet.getCell(rowNumber, colIdx).value = null;
+        }
+
+        sheet.mergeCells(startRow, colIdx, endRow, colIdx);
+        writeScheduleTextCell(sheet.getCell(startRow, colIdx), value, options);
+    }
+
+    function writeMonthlyScheduleArea(sheet, year, month, exportOptions, showOffWorkers, monthlyWorkerDays, totalWorkerDays) {
+        const weekBlocks = buildMonthWeekCells(year, month);
+        const useDetailedRows = shouldUseDetailedScheduleRows(exportOptions);
+        const templateWorkerRowHeight = sheet.getRow(7).height;
+        let currentRow = 6;
+        let insertedRowCount = 0;
+        let lastUsedRow = 7;
+
+        weekBlocks.forEach((weekDays) => {
+            const dateRowNumber = currentRow;
+            const weekendRoomLabelMap = buildWeekendRoomLabelMap(weekDays, year, month, exportOptions);
+            const weekGroups = useDetailedRows
+                ? buildWeeklyScheduleRows(weekDays, year, month, exportOptions, weekendRoomLabelMap)
+                : [{ key: '__default__', label: '근무자' }];
+
+            setScheduleLabelRow(sheet, dateRowNumber, '일자');
+            clearScheduleRow(sheet, dateRowNumber);
+
+            const scheduleRows = [];
+            let nextRowNumber = dateRowNumber + 1;
+
+            weekGroups.forEach((group, index) => {
+                if (index > 0) {
+                    sheet.insertRow(nextRowNumber, [], 'i+');
+                    insertedRowCount++;
+                    sheet.getRow(nextRowNumber).height = templateWorkerRowHeight;
+                }
+
+                clearScheduleRow(sheet, nextRowNumber);
+                setScheduleLabelRow(sheet, nextRowNumber, group.label);
+                scheduleRows.push({ key: group.key, rowNumber: nextRowNumber });
+                nextRowNumber++;
+            });
+
+            let offRowNumber = null;
+            if (showOffWorkers) {
+                sheet.insertRow(nextRowNumber, [], 'i+');
+                insertedRowCount++;
+                sheet.getRow(nextRowNumber).height = templateWorkerRowHeight;
+                clearScheduleRow(sheet, nextRowNumber);
+                setScheduleLabelRow(sheet, nextRowNumber, '휴무자', { color: 'FFFF0000' });
+                offRowNumber = nextRowNumber;
+                nextRowNumber++;
+            }
+
+            weekDays.forEach(({ date, dateStr, colIdx }) => {
+                const dayData = getExcelDateData(dateStr, showOffWorkers);
+                const groupedWorkers = getExcelWorkerGroupsForDay(
+                    dayData.workers,
+                    year,
+                    month,
+                    exportOptions,
+                    date,
+                    weekendRoomLabelMap
+                );
+                const groupedMap = new Map(groupedWorkers.map((group) => [group.key, group.workers]));
+                const mergedEndRow = offRowNumber ?? scheduleRows[scheduleRows.length - 1].rowNumber;
+                const specialScheduleLabel = dayData.holidayName || (dayData.isClosed ? '정기휴관일' : '');
+
+                sheet.getCell(dateRowNumber, colIdx).value = new Date(Date.UTC(year, month - 1, date.getDate()));
+
+                if (specialScheduleLabel) {
+                    writeMergedScheduleTextCell(
+                        sheet,
+                        scheduleRows[0].rowNumber,
+                        mergedEndRow,
+                        colIdx,
+                        specialScheduleLabel,
+                        { color: 'FFFF0000', bold: true }
+                    );
+                } else {
+                    scheduleRows.forEach(({ key, rowNumber }) => {
+                        writeScheduleTextCell(
+                            sheet.getCell(rowNumber, colIdx),
+                            formatWorkersForExcel(groupedMap.get(key) || [])
+                        );
+                    });
+                }
+
+                dayData.workers.forEach((name) => {
+                    monthlyWorkerDays[name]++;
+                    totalWorkerDays[name]++;
+                });
+
+                if (offRowNumber !== null && !specialScheduleLabel) {
+                    writeScheduleTextCell(
+                        sheet.getCell(offRowNumber, colIdx),
+                        formatWorkersForExcel(dayData.offWorkers),
+                        { color: 'FF000000' }
+                    );
+                }
+            });
+
+            scheduleRows.forEach(({ rowNumber }) => {
+                setScheduleRowHeight(sheet, rowNumber, 18, 15);
+            });
+
+            if (offRowNumber !== null) {
+                setScheduleRowHeight(sheet, offRowNumber, 18, 15);
+            }
+
+            lastUsedRow = nextRowNumber - 1;
+            currentRow = nextRowNumber;
+        });
+
+        return {
+            lastUsedRow,
+            scheduleEndRow: 17 + insertedRowCount
+        };
     }
 
     function calculateRegularWorkDaysForMonth(year, month) {
@@ -839,6 +1523,225 @@ document.addEventListener('DOMContentLoaded', () => {
             : 24.95;
     }
 
+    function createExcelDetailSettingSelect(detailType, workerIndex, monthKey, value) {
+        const select = document.createElement('select');
+        select.dataset.workerIndex = String(workerIndex);
+        select.dataset.monthKey = monthKey;
+        select.dataset.detailType = detailType;
+        select.className = 'w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-xs text-stone-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100';
+
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '미설정';
+        select.appendChild(emptyOption);
+
+        if (isRoomDetailType(detailType)) {
+            ROOM_SETTING_OPTIONS.forEach((roomName) => {
+                const option = document.createElement('option');
+                option.value = roomName;
+                option.textContent = roomName;
+                select.appendChild(option);
+            });
+
+            if (value && !ROOM_SETTING_OPTIONS.includes(value)) {
+                const customOption = document.createElement('option');
+                customOption.value = value;
+                customOption.textContent = `직접입력: ${value}`;
+                select.appendChild(customOption);
+            }
+
+            const promptOption = document.createElement('option');
+            promptOption.value = CUSTOM_ROOM_SETTING_VALUE;
+            promptOption.textContent = '직접입력...';
+            select.appendChild(promptOption);
+        } else {
+            SHIFT_SETTING_OPTIONS.forEach((shiftName) => {
+                const option = document.createElement('option');
+                option.value = shiftName;
+                option.textContent = shiftName;
+                select.appendChild(option);
+            });
+        }
+
+        select.value = value || '';
+        return select;
+    }
+
+    function renderExcelDetailSettingsPanel() {
+        const showDetailedSettings = excelShowDetailSettingsInput.checked;
+        excelDetailSettingsSection.classList.toggle('hidden', !showDetailedSettings);
+
+        if (!showDetailedSettings) {
+            excelDetailSettingsHead.innerHTML = '';
+            excelDetailSettingsBody.innerHTML = '';
+            return;
+        }
+
+        ensureAllExcelWorkerDetailSettings();
+
+        const monthConfigs = getExcelDetailMonthConfigs();
+        const detailColumns = getActiveExcelDetailSettingColumns();
+        const shouldShowTable = excelWorkers.length > 0 && detailColumns.length > 0;
+        const monthThemeClasses = [
+            {
+                header: 'bg-amber-100',
+                subHeader: 'bg-amber-50',
+                body: 'bg-amber-50',
+                divider: 'border-l-[3px] border-l-amber-300'
+            },
+            {
+                header: 'bg-emerald-100',
+                subHeader: 'bg-emerald-50',
+                body: 'bg-emerald-50',
+                divider: 'border-l-[3px] border-l-emerald-300'
+            },
+            {
+                header: 'bg-sky-100',
+                subHeader: 'bg-sky-50',
+                body: 'bg-sky-50',
+                divider: 'border-l-[3px] border-l-sky-300'
+            }
+        ];
+
+        excelDetailSettingsNote.textContent = '';
+
+        excelDetailSettingsTable.classList.toggle('hidden', !shouldShowTable);
+        excelDetailSettingsEmpty.classList.toggle('hidden', shouldShowTable);
+
+        if (!shouldShowTable) {
+            excelDetailSettingsHead.innerHTML = '';
+            excelDetailSettingsBody.innerHTML = '';
+            excelDetailSettingsEmpty.textContent = excelWorkers.length === 0
+                ? '먼저 엑셀 근무자 명단에 사람을 추가하세요.'
+                : '자료실 설정 또는 주야간 설정을 하나 이상 켜세요.';
+            return;
+        }
+
+        excelDetailSettingsHead.innerHTML = '';
+        excelDetailSettingsBody.innerHTML = '';
+
+        const headerRow = document.createElement('tr');
+        const workerHeader = document.createElement('th');
+        workerHeader.rowSpan = 2;
+        workerHeader.className = 'sticky top-0 z-30 px-3 py-3 text-left text-xs font-bold text-stone-700 border-b border-r border-teal-300 bg-white shadow-[0_1px_0_0_rgba(20,83,45,0.08)] w-[4.4rem] min-w-[4.4rem] whitespace-nowrap align-middle';
+        workerHeader.textContent = '근무자';
+        headerRow.appendChild(workerHeader);
+
+        monthConfigs.forEach(({ label }, monthIndex) => {
+            const theme = monthThemeClasses[monthIndex % monthThemeClasses.length];
+            const monthHeader = document.createElement('th');
+            monthHeader.colSpan = detailColumns.length;
+            monthHeader.className = `sticky top-0 z-20 px-3 py-3 text-center text-xs font-bold text-stone-700 border-b border-r border-teal-300 shadow-[0_1px_0_0_rgba(20,83,45,0.08)] ${theme.header} ${monthIndex > 0 ? theme.divider : ''}`;
+            monthHeader.textContent = label;
+            headerRow.appendChild(monthHeader);
+        });
+
+        const subHeaderRow = document.createElement('tr');
+        monthConfigs.forEach((_, monthIndex) => {
+            const theme = monthThemeClasses[monthIndex % monthThemeClasses.length];
+            detailColumns.forEach(({ label }, columnIndex) => {
+                const subHeader = document.createElement('th');
+                subHeader.className = `sticky top-[43px] z-20 px-3 py-2 text-center text-[11px] font-semibold text-stone-600 border-b border-r border-teal-300 shadow-[0_1px_0_0_rgba(20,83,45,0.08)] ${theme.subHeader} ${columnIndex === 0 ? theme.divider : ''}`;
+                subHeader.textContent = label;
+                subHeaderRow.appendChild(subHeader);
+            });
+        });
+
+        excelDetailSettingsHead.appendChild(headerRow);
+        excelDetailSettingsHead.appendChild(subHeaderRow);
+
+        excelWorkers.forEach((name, workerIndex) => {
+            ensureExcelWorkerDetailSettings(name);
+
+            const row = document.createElement('tr');
+            if (workerIndex % 2 === 1) {
+                row.className = 'bg-stone-50/40';
+            }
+
+            const nameCell = document.createElement('th');
+            nameCell.className = `px-3 py-3 text-left text-sm font-semibold text-stone-800 border-r border-teal-300 whitespace-nowrap w-[4.4rem] min-w-[4.4rem] ${workerIndex % 2 === 1 ? 'bg-stone-50' : 'bg-white'}`;
+            nameCell.textContent = name;
+            row.appendChild(nameCell);
+
+            monthConfigs.forEach(({ key }, monthIndex) => {
+                const theme = monthThemeClasses[monthIndex % monthThemeClasses.length];
+                const detail = excelWorkerDetails[name][key];
+
+                detailColumns.forEach(({ key: columnKey }, columnIndex) => {
+                    const cell = document.createElement('td');
+                    cell.className = `px-3 py-2 border-r border-b border-teal-300 ${theme.body} ${columnIndex === 0 ? theme.divider : ''}`;
+                    cell.appendChild(
+                        createExcelDetailSettingSelect(
+                            columnKey,
+                            workerIndex,
+                            key,
+                            getExcelWorkerDetailFieldValue(detail, columnKey)
+                        )
+                    );
+                    row.appendChild(cell);
+                });
+            });
+
+            excelDetailSettingsBody.appendChild(row);
+        });
+    }
+
+    function openExcelExportModal() {
+        syncExcelExportModal();
+        excelExportModal.classList.remove('hidden');
+        excelExportModal.classList.add('flex');
+        requestAnimationFrame(() => {
+            excelLibraryNameInput.focus();
+        });
+    }
+
+    function closeExcelExportModal(force = false) {
+        if (isExcelExporting && !force) return;
+        excelExportModal.classList.add('hidden');
+        excelExportModal.classList.remove('flex');
+    }
+
+    function syncExcelExportModal() {
+        excelLibraryNameInput.value = excelExportOptions.libraryName;
+        excelShowOffWorkersInput.checked = excelExportOptions.showOffWorkers;
+        excelShowDetailSettingsInput.checked = excelExportOptions.showDetailedSettings;
+        excelEnableRoomSettingsInput.checked = excelExportOptions.useRoomSettings;
+        excelEnableShiftSettingsInput.checked = excelExportOptions.useShiftSettings;
+        renderExcelDetailSettingsPanel();
+    }
+
+    function getExcelExportOptionsFromForm() {
+        return {
+            libraryName: excelLibraryNameInput.value.trim(),
+            showOffWorkers: excelShowOffWorkersInput.checked,
+            showDetailedSettings: excelShowDetailSettingsInput.checked,
+            useRoomSettings: excelEnableRoomSettingsInput.checked,
+            useShiftSettings: excelEnableShiftSettingsInput.checked
+        };
+    }
+
+    function setExcelExportLoadingState(isLoading) {
+        isExcelExporting = isLoading;
+        downloadExcelBtn.innerHTML = isLoading
+            ? '<span>⏳ 파일 생성 중...</span>'
+            : '<span>최종 엑셀 파일 다운로드</span>';
+        downloadExcelBtn.disabled = isLoading;
+
+        confirmExcelExportBtn.textContent = isLoading ? '파일 생성 중...' : '다운로드';
+        confirmExcelExportBtn.disabled = isLoading;
+        cancelExcelExportBtn.disabled = isLoading;
+        closeExcelExportModalBtn.disabled = isLoading;
+        excelLibraryNameInput.disabled = isLoading;
+        excelShowOffWorkersInput.disabled = isLoading;
+        excelShowDetailSettingsInput.disabled = isLoading;
+        excelEnableRoomSettingsInput.disabled = isLoading;
+        excelEnableShiftSettingsInput.disabled = isLoading;
+
+        excelDetailSettingsBody.querySelectorAll('select').forEach((select) => {
+            select.disabled = isLoading;
+        });
+    }
+
     function updateExcelWorkersUI() {
         excelCountEl.innerText = excelWorkers.length;
         excelWorkersList.innerHTML = '';
@@ -846,16 +1749,36 @@ document.addEventListener('DOMContentLoaded', () => {
         excelWorkers.forEach((name) => {
             const span = document.createElement('span');
             span.className = 'bg-teal-700 text-teal-50 px-2 py-0.5 rounded border border-teal-500 text-[11px] font-bold flex items-center gap-1 shadow-sm';
-            span.innerHTML = `${name} <button onclick="window.removeExcelWorker('${name}')" class="text-teal-300 hover:text-white transition-colors">&times;</button>`;
+
+            const text = document.createElement('span');
+            text.textContent = name;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'text-teal-300 hover:text-white transition-colors';
+            button.textContent = '×';
+            button.addEventListener('click', () => {
+                window.removeExcelWorker(name);
+            });
+
+            span.appendChild(text);
+            span.appendChild(button);
             excelWorkersList.appendChild(span);
         });
+
+        if (excelExportModal.classList.contains('flex')) {
+            renderExcelDetailSettingsPanel();
+        }
     }
 
     window.removeExcelWorker = function(nameToRemove) {
         excelWorkers = excelWorkers.filter((name) => name !== nameToRemove);
+        delete excelWorkerDetails[nameToRemove];
+
         for (const dateStr in excelDataByDate) {
             excelDataByDate[dateStr].workers = excelDataByDate[dateStr].workers.filter((name) => name !== nameToRemove);
         }
+
         updateExcelWorkersUI();
     };
 
@@ -863,13 +1786,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!workers || workers.length === 0) return '';
 
         const lines = [];
-        for (let i = 0; i < workers.length; i += 2) {
-            if (i + 1 < workers.length) {
-                lines.push(`${workers[i]},${workers[i + 1]}`);
-            } else {
-                lines.push(workers[i]);
-            }
+        for (let index = 0; index < workers.length; index += 2) {
+            const lineWorkers = workers.slice(index, index + 2);
+            lines.push(lineWorkers.join(','));
         }
+
         return lines.join('\n');
     }
 

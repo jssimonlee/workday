@@ -71,25 +71,51 @@
     </div>
 
     <!-- Alert Modal for Validation -->
-    <div id="alert-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-[60] transition-opacity">
-        <div class="bg-white rounded-3xl p-8 shadow-2xl w-[90%] max-w-sm flex flex-col items-center text-center gap-2 border border-stone-200 animate-[bounce_0.5s_ease-out]">
-            <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-4xl mb-2 shadow-inner border border-blue-100">
+    <div id="alert-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-[60] transition-opacity px-4">
+        <div class="bg-white rounded-3xl p-8 shadow-2xl w-full max-w-sm flex flex-col items-center text-center gap-2 border border-stone-200 animate-[bounce_0.5s_ease-out]">
+            <div id="alert-modal-icon" class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-4xl mb-2 shadow-inner border border-blue-100">
                 🔔
             </div>
-            <h3 class="text-xl font-extrabold text-stone-800 mt-2">휴관일 선택 안내</h3>
-            <p class="text-stone-600 text-sm leading-relaxed mb-4">
-                공무직 도서관 휴관일을 먼저 선택해 주세요!<br>
-                <span class="text-[11px] text-stone-400 bg-stone-50 px-2 py-1 rounded mt-2 inline-block">해당 사항이 없다면 "없음"을 선택하세요.</span>
-            </p>
+            <h3 id="alert-modal-title" class="text-xl font-extrabold text-stone-800 mt-2">안내</h3>
+            <p id="alert-modal-message" class="text-stone-600 text-sm leading-relaxed mb-4 whitespace-pre-line"></p>
             <button id="close-alert-btn" class="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white p-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/30 active:scale-95">
                 확인
             </button>
         </div>
     </div>
 
+    <!-- Room Name Input Modal -->
+    <div id="room-input-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-[80] transition-opacity px-4">
+        <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-md flex flex-col gap-5 border border-stone-200">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-xs font-semibold tracking-[0.2em] text-emerald-600 uppercase">Custom Room</p>
+                    <h3 class="text-xl font-extrabold text-stone-800 mt-1">자료실 직접입력</h3>
+                    <p class="text-sm text-stone-500 mt-2 leading-relaxed">엑셀 1열에 표시할 자료실 이름을 입력하세요. 비워두면 미설정으로 돌아갑니다.</p>
+                </div>
+                <button id="close-room-input-modal-btn" class="w-10 h-10 rounded-2xl bg-stone-100 hover:bg-stone-200 text-2xl leading-none text-stone-500 transition-colors shrink-0">&times;</button>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <label for="room-input-field" class="text-sm font-bold text-stone-800">자료실 이름</label>
+                <input
+                    type="text"
+                    id="room-input-field"
+                    placeholder="예: 디지털자료실"
+                    class="w-full p-3 rounded-2xl border-2 border-emerald-100 bg-emerald-50/40 focus:border-emerald-500 outline-none transition-all text-sm shadow-sm text-stone-700 placeholder:text-stone-400"
+                >
+            </div>
+
+            <div class="flex flex-col-reverse sm:flex-row gap-3">
+                <button id="cancel-room-input-modal-btn" class="flex-1 rounded-2xl border-2 border-stone-200 bg-white hover:bg-stone-50 text-stone-700 font-bold py-3 transition-all active:scale-[0.98]">취소</button>
+                <button id="confirm-room-input-modal-btn" class="flex-1 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-3 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]">적용</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Excel Export Modal -->
-    <div id="excel-export-modal" class="fixed inset-0 bg-black/45 backdrop-blur-sm hidden items-center justify-center z-[70] transition-opacity px-4">
-        <div class="w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-teal-100 overflow-hidden">
+    <div id="excel-export-modal" class="fixed inset-0 bg-black/45 backdrop-blur-sm hidden items-start justify-center overflow-y-auto z-[70] transition-opacity px-4 py-4 sm:py-6">
+        <div class="w-full max-w-[70.5rem] max-h-[96vh] my-auto bg-white rounded-[2rem] shadow-2xl border border-teal-200 overflow-hidden flex flex-col">
             <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-emerald-600 px-6 py-5 text-white">
                 <div class="flex items-start justify-between gap-4">
                     <div>
@@ -101,20 +127,20 @@
                 </div>
             </div>
 
-            <div class="p-6 flex flex-col gap-4 bg-gradient-to-b from-white to-teal-50/40">
-                <div class="rounded-2xl border border-teal-100 bg-white shadow-sm p-4 flex flex-col gap-2">
-                    <label for="excel-library-name-input" class="text-sm font-bold text-stone-800">도서관 이름</label>
-                    <input
-                        type="text"
-                        id="excel-library-name-input"
-                        placeholder="노을빛도서관"
-                        class="w-full p-3 rounded-2xl border-2 border-teal-100 bg-teal-50/40 focus:border-emerald-500 outline-none transition-all text-sm shadow-sm text-stone-700 placeholder:text-stone-400"
-                    >
-                    <p class="text-[11px] text-stone-500">비워두면 기본값인 노을빛도서관으로 엑셀에 반영됩니다.</p>
-                </div>
+            <div class="p-6 min-h-0 flex-1 overflow-y-auto flex flex-col gap-4 bg-gradient-to-b from-white to-teal-50/40">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+                    <div class="rounded-2xl border border-teal-100 bg-white shadow-sm p-4 min-h-[112px] flex flex-col justify-between gap-2">
+                        <label for="excel-library-name-input" class="text-sm font-bold text-stone-800">도서관 이름</label>
+                        <input
+                            type="text"
+                            id="excel-library-name-input"
+                            placeholder="노을빛도서관"
+                            class="w-full p-3 rounded-2xl border-2 border-teal-100 bg-teal-50/40 focus:border-emerald-500 outline-none transition-all text-sm shadow-sm text-stone-700 placeholder:text-stone-400"
+                        >
+                        <p class="text-[11px] text-stone-500">비워두면 기본값인 노을빛도서관으로 엑셀에 반영됩니다.</p>
+                    </div>
 
-                <div class="rounded-2xl border border-teal-100 bg-white shadow-sm divide-y divide-teal-50">
-                    <div class="p-4 flex items-center justify-between gap-4">
+                    <div class="rounded-2xl border border-teal-100 bg-white shadow-sm p-4 min-h-[112px] flex items-center justify-between gap-4">
                         <div>
                             <label for="excel-show-off-workers" class="text-sm font-bold text-stone-800 cursor-pointer">휴무자 표시(주중 평일)</label>
                             <p class="text-[11px] text-stone-500 mt-1">근무자 아래에 휴무자 행을 추가해 날짜별 휴무자를 표시합니다.</p>
@@ -125,15 +151,44 @@
                         </label>
                     </div>
 
-                    <div class="p-4 flex items-center justify-between gap-4">
+                    <div class="rounded-2xl border border-teal-100 bg-white shadow-sm p-4 min-h-[112px] flex items-center justify-between gap-4">
                         <div>
                             <label for="excel-show-detail-settings" class="text-sm font-bold text-stone-800 cursor-pointer">자료실, 주야 상세설정</label>
-                            <p class="text-[11px] text-stone-500 mt-1">이번 작업에서는 UI만 표시하고 동작은 다음 단계에서 구현합니다.</p>
+                            <p class="text-[11px] text-stone-500 mt-1">월별 자료실, 주야간 설정을 켜서 근무자 이름 대신 출력 라벨을 바꿉니다.</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer shrink-0">
                             <input type="checkbox" id="excel-show-detail-settings" class="sr-only peer">
                             <div class="w-12 h-7 bg-teal-950/10 rounded-full transition-colors peer-checked:bg-emerald-500 after:content-[''] after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></div>
                         </label>
+                    </div>
+                </div>
+
+                <div id="excel-detail-settings-section" class="hidden min-h-0 max-h-[64vh] rounded-2xl border border-teal-200 bg-white shadow-sm overflow-hidden flex flex-col">
+                    <div class="p-4 border-b border-teal-200 bg-gradient-to-r from-teal-50 to-white flex flex-col gap-3">
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <p class="text-sm font-bold text-stone-800">상세설정 매트릭스</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <label class="inline-flex items-center gap-2 rounded-xl border border-teal-100 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm cursor-pointer">
+                                    <input type="checkbox" id="excel-enable-room-settings" class="rounded border-teal-300 text-emerald-600 focus:ring-emerald-500" checked>
+                                    <span>자료실 설정</span>
+                                </label>
+                                <label class="inline-flex items-center gap-2 rounded-xl border border-teal-100 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm cursor-pointer">
+                                    <input type="checkbox" id="excel-enable-shift-settings" class="rounded border-teal-300 text-emerald-600 focus:ring-emerald-500" checked>
+                                    <span>주야간 설정</span>
+                                </label>
+                            </div>
+                        </div>
+                        <p id="excel-detail-settings-note" class="hidden"></p>
+                    </div>
+
+                    <div class="relative min-h-0 flex-1 overflow-auto overscroll-contain">
+                        <div id="excel-detail-settings-empty" class="hidden px-4 py-6 text-sm text-stone-500"></div>
+                        <table id="excel-detail-settings-table" class="hidden min-w-[1010px] w-full text-sm border-separate border-spacing-0 border border-teal-300">
+                            <thead id="excel-detail-settings-head" class="bg-teal-50/80 text-stone-700"></thead>
+                            <tbody id="excel-detail-settings-body" class="bg-white divide-y divide-teal-50"></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -148,7 +203,7 @@
     <div class="max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-5">
         
         <!-- Settings Sidebar -->
-        <aside class="w-full lg:w-[360px] xl:w-[400px] bg-amber-50/50 backdrop-blur-xl rounded-3xl p-5 shadow-2xl shadow-orange-900/5 flex flex-col gap-4 shrink-0 border border-amber-100/60">
+        <aside class="w-full lg:w-[306px] xl:w-[340px] bg-amber-50/50 backdrop-blur-xl rounded-3xl p-5 shadow-2xl shadow-orange-900/5 flex flex-col gap-4 shrink-0 border border-amber-100/60">
             <h2 class="text-xl font-bold text-stone-800 flex items-center gap-2 justify-between">
                 <span>⚙️ 설정</span>
                 <button id="open-holiday-modal-btn" class="text-sm font-bold bg-amber-100 hover:bg-amber-200 text-amber-700 py-1.5 px-3 rounded-xl transition-all shadow-sm flex items-center gap-1 active:scale-95">
@@ -158,9 +213,9 @@
             
             <div class="flex flex-col gap-1.5">
                 <label class="font-semibold text-xs text-stone-700">조회 연도 및 대상 월 (2개월 짝)</label>
-                <div class="flex gap-2">
-                    <input type="number" id="year-select" class="w-28 p-2 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-amber-500 outline-none transition-all font-medium text-stone-700 shadow-sm text-center text-sm">
-                    <select id="month-pair-select" class="flex-1 p-2 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-amber-500 outline-none transition-all font-medium text-stone-700 cursor-pointer shadow-sm text-center text-sm">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" id="year-select" class="w-full p-2 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-amber-500 outline-none transition-all font-medium text-stone-700 shadow-sm text-center text-sm">
+                    <select id="month-pair-select" class="w-full p-2 rounded-xl border-2 border-stone-200 bg-white focus:ring-0 focus:border-amber-500 outline-none transition-all font-medium text-stone-700 cursor-pointer shadow-sm text-center text-sm">
                         <option value="1">1-2월</option>
                         <option value="3">3-4월</option>
                         <option value="5">5-6월</option>
@@ -186,8 +241,7 @@
             <div class="flex flex-col gap-1.5">
                 <label class="font-semibold text-xs text-stone-700">공무직 개인 휴일 (월 단위 지정)</label>
                 <p class="text-[10px] text-stone-500 leading-tight">
-                    * 이월 주간 판별을 위해 이전 달의 설정이 필요합니다.<br>
-                    * 도서관 휴관일이 있는 주는 월요일이 강제 휴무 처리됩니다.
+                    * 이월 주간 판별을 위해 이전 달의 설정이 필요합니다.
                 </p>
                 <div id="personal-holidays-container" class="flex flex-col gap-1.5 mt-0.5">
                     <!-- JS Populated -->
@@ -207,8 +261,8 @@
                     </button>
                     <div id="excel-panel" class="hidden flex-col gap-2.5 mt-3">
                         <div class="flex gap-2">
-                            <input type="text" id="worker-name-input" placeholder="근무자 이름 (예: 홍길동)" class="flex-1 p-2 rounded-xl border-2 border-teal-600 focus:border-teal-400 outline-none transition-all text-sm shadow-sm bg-teal-900/50 text-teal-100 placeholder-teal-400">
-                            <button id="add-excel-btn" class="bg-emerald-500 hover:bg-emerald-400 text-white px-3 rounded-xl font-bold text-sm transition-all shadow-sm active:scale-95 whitespace-nowrap">
+                            <input type="text" id="worker-name-input" placeholder="근무자 이름 (예: 홍길동)" class="min-w-0 flex-1 p-2 rounded-xl border-2 border-teal-600 focus:border-teal-400 outline-none transition-all text-sm shadow-sm bg-teal-900/50 text-teal-100 placeholder-teal-400">
+                            <button id="add-excel-btn" class="shrink-0 bg-emerald-500 hover:bg-emerald-400 text-white px-3 rounded-xl font-bold text-sm transition-all shadow-sm active:scale-95 whitespace-nowrap">
                                 명단에 추가
                             </button>
                         </div>
@@ -219,7 +273,6 @@
                         <button id="download-excel-btn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-md p-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                             <span>최종 엑셀 파일 다운로드</span>
                         </button>
-                        <p class="text-center text-teal-400 text-[10px]">노을빛도서관 기준입니다. 수정해서 사용하세요.</p>
                     </div>
                 </div>
             </div>
