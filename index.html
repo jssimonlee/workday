@@ -83,6 +83,64 @@
         </div>
     </div>
 
+    <!-- Excel Export Modal -->
+    <div id="excel-export-modal" class="fixed inset-0 bg-black/45 backdrop-blur-sm hidden items-center justify-center z-[70] transition-opacity px-4">
+        <div class="w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-teal-100 overflow-hidden">
+            <div class="bg-gradient-to-r from-teal-800 via-teal-700 to-emerald-600 px-6 py-5 text-white">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold tracking-[0.2em] text-teal-100/80 uppercase">Excel Export</p>
+                        <h3 class="text-2xl font-extrabold mt-1">엑셀 다운로드 설정</h3>
+                        <p class="text-sm text-teal-50/90 mt-2 leading-relaxed">편성표 제목과 표시 옵션을 확인한 뒤 내려받을 수 있습니다.</p>
+                    </div>
+                    <button id="close-excel-export-modal-btn" class="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 text-2xl leading-none transition-colors shrink-0">&times;</button>
+                </div>
+            </div>
+
+            <div class="p-6 flex flex-col gap-4 bg-gradient-to-b from-white to-teal-50/40">
+                <div class="rounded-2xl border border-teal-100 bg-white shadow-sm p-4 flex flex-col gap-2">
+                    <label for="excel-library-name-input" class="text-sm font-bold text-stone-800">도서관 이름</label>
+                    <input
+                        type="text"
+                        id="excel-library-name-input"
+                        placeholder="노을빛도서관"
+                        class="w-full p-3 rounded-2xl border-2 border-teal-100 bg-teal-50/40 focus:border-emerald-500 outline-none transition-all text-sm shadow-sm text-stone-700 placeholder:text-stone-400"
+                    >
+                    <p class="text-[11px] text-stone-500">비워두면 기본값인 노을빛도서관으로 엑셀에 반영됩니다.</p>
+                </div>
+
+                <div class="rounded-2xl border border-teal-100 bg-white shadow-sm divide-y divide-teal-50">
+                    <div class="p-4 flex items-center justify-between gap-4">
+                        <div>
+                            <label for="excel-show-off-workers" class="text-sm font-bold text-stone-800 cursor-pointer">휴무자 표시</label>
+                            <p class="text-[11px] text-stone-500 mt-1">근무자 아래에 휴무자 행을 추가해 날짜별 휴무자를 표시합니다.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="excel-show-off-workers" class="sr-only peer">
+                            <div class="w-12 h-7 bg-teal-950/10 rounded-full transition-colors peer-checked:bg-emerald-500 after:content-[''] after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></div>
+                        </label>
+                    </div>
+
+                    <div class="p-4 flex items-center justify-between gap-4">
+                        <div>
+                            <label for="excel-show-detail-settings" class="text-sm font-bold text-stone-800 cursor-pointer">자료실, 주야 상세설정</label>
+                            <p class="text-[11px] text-stone-500 mt-1">이번 작업에서는 UI만 표시하고 동작은 다음 단계에서 구현합니다.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="excel-show-detail-settings" class="sr-only peer">
+                            <div class="w-12 h-7 bg-teal-950/10 rounded-full transition-colors peer-checked:bg-emerald-500 after:content-[''] after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+                    <button id="cancel-excel-export-btn" class="flex-1 rounded-2xl border-2 border-teal-100 bg-white hover:bg-teal-50 text-teal-800 font-bold py-3 transition-all active:scale-[0.98]">취소</button>
+                    <button id="confirm-excel-export-btn" class="flex-1 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-3 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]">다운로드</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-5">
         
         <!-- Settings Sidebar -->
