@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const libraryClosedSelect = document.getElementById('library-closed-select');
     const personalContainer = document.getElementById('personal-holidays-container');
     const runBtn = document.getElementById('run-btn');
+    const runBtnLabel = document.getElementById('run-btn-label');
+    const runBtnHint = document.getElementById('run-btn-hint');
     const resetBtn = document.getElementById('reset-btn');
 
     const workerNameInput = document.getElementById('worker-name-input');
@@ -101,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('countWorkDay_deleted_defaults', JSON.stringify(deletedDefaults));
         buildActiveHolidays();
         renderHolidayList();
-        renderAll();
+        resetPublicCalendarPreview();
     }
 
     function saveSettingsToLocalStorage() {
@@ -132,6 +134,49 @@ document.addEventListener('DOMContentLoaded', () => {
         holidayDateInput.value = `${state.year}-${String(state.monthStart).padStart(2, '0')}-01`;
     }
 
+    function syncPersonalSettingsFromUI() {
+        const rows = document.querySelectorAll('.personal-month-row');
+        rows.forEach((row) => {
+            const key = row.dataset.key;
+            const weekday = parseInt(row.querySelector('.weekday-sel').value, 10);
+            const weekend = parseInt(row.querySelector('.weekend-sel').value, 10);
+            state.personalSettings[key] = { weekday, weekend };
+        });
+    }
+
+    function resetPublicCalendarPreview() {
+        state.mode = 'regular';
+        renderAll();
+    }
+
+    function updateRunButtonState() {
+        const needsApply = state.mode === 'regular';
+        const hasLibraryClosed = !!state.libraryClosed;
+        const shouldEmphasize = needsApply && hasLibraryClosed;
+
+        runBtn.style.animation = shouldEmphasize ? 'ctaFloat 2.2s ease-in-out infinite' : 'none';
+        runBtn.style.boxShadow = shouldEmphasize
+            ? '0 18px 40px rgba(249, 115, 22, 0.38)'
+            : '0 10px 24px rgba(249, 115, 22, 0.18)';
+        runBtn.style.outline = shouldEmphasize ? '3px solid rgba(253, 230, 138, 0.7)' : 'none';
+        runBtn.style.outlineOffset = shouldEmphasize ? '2px' : '0';
+
+        if (!hasLibraryClosed) {
+            runBtnLabel.textContent = '공무직 휴관일 달력 확인하기';
+            runBtnHint.textContent = '먼저 휴관일을 선택하세요';
+            return;
+        }
+
+        if (needsApply) {
+            runBtnLabel.textContent = '공무직 휴관일 달력 확인하기';
+            runBtnHint.textContent = '설정을 바꿨다면 눌러서 반영하세요';
+            return;
+        }
+
+        runBtnLabel.textContent = '공무직 휴관일 달력 확인하기';
+        runBtnHint.textContent = '현재 설정이 달력에 반영되어 있습니다';
+    }
+
     function setupEventListeners() {
         yearSelect.addEventListener('change', (e) => {
             const newYear = parseInt(e.target.value, 10);
@@ -147,10 +192,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             state.year = newYear;
-            state.mode = 'regular';
             updatePersonalSettingsUI();
             setHolidayInputDefaultDate();
-            renderAll();
+            resetPublicCalendarPreview();
         });
 
         monthPairSelect.addEventListener('change', (e) => {
@@ -167,22 +211,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             state.monthStart = newMonth;
-            state.mode = 'regular';
             updatePersonalSettingsUI();
             setHolidayInputDefaultDate();
-            renderAll();
+            resetPublicCalendarPreview();
         });
 
         libraryClosedSelect.addEventListener('change', (e) => {
             state.libraryClosed = e.target.value;
             saveSettingsToLocalStorage();
+            resetPublicCalendarPreview();
+        });
+
+        personalContainer.addEventListener('change', (e) => {
+            if (!e.target.matches('.weekday-sel, .weekend-sel')) {
+                return;
+            }
+
+            syncPersonalSettingsFromUI();
+            resetPublicCalendarPreview();
         });
 
         resetBtn.addEventListener('click', () => {
             state.personalSettings = {};
             updatePersonalSettingsUI();
-            state.mode = 'regular';
-            renderAll();
+            resetPublicCalendarPreview();
         });
 
         excelToggleBtn.addEventListener('click', () => {
@@ -227,13 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const rows = document.querySelectorAll('.personal-month-row');
-            rows.forEach((row) => {
-                const key = row.dataset.key;
-                const weekday = parseInt(row.querySelector('.weekday-sel').value, 10);
-                const weekend = parseInt(row.querySelector('.weekend-sel').value, 10);
-                state.personalSettings[key] = { weekday, weekend };
-            });
+            syncPersonalSettingsFromUI();
 
             excelWorkers.push(name);
             updateExcelWorkersUI();
@@ -323,13 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const rows = document.querySelectorAll('.personal-month-row');
-            rows.forEach((row) => {
-                const key = row.dataset.key;
-                const weekday = parseInt(row.querySelector('.weekday-sel').value, 10);
-                const weekend = parseInt(row.querySelector('.weekend-sel').value, 10);
-                state.personalSettings[key] = { weekday, weekend };
-            });
+            syncPersonalSettingsFromUI();
 
             saveSettingsToLocalStorage();
             state.mode = 'public';
@@ -529,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 totalRow++;
-                sheet.getCell(totalRow, 8).value = '기준 근무일 (2개월)';
+                sheet.getCell(totalRow, 8).value = '기준 근무일(2개월)';
                 sheet.getCell(totalRow, 8).font = { bold: true, size: 10 };
                 sheet.getCell(totalRow, 9).value = `${regularWorkDays}일`;
                 sheet.getCell(totalRow, 9).font = { bold: true, size: 10 };
@@ -645,11 +685,39 @@ document.addEventListener('DOMContentLoaded', () => {
     function replaceLibraryNameInSheet(sheet, libraryName) {
         sheet.eachRow((row) => {
             row.eachCell({ includeEmpty: false }, (cell) => {
-                if (typeof cell.value === 'string' && cell.value.includes(DEFAULT_LIBRARY_NAME)) {
-                    cell.value = cell.value.split(DEFAULT_LIBRARY_NAME).join(libraryName);
+                const replacedValue = replaceLibraryNameInCellValue(cell.value, libraryName);
+                if (replacedValue !== cell.value) {
+                    cell.value = replacedValue;
                 }
             });
         });
+    }
+
+    function replaceLibraryNameInCellValue(cellValue, libraryName) {
+        if (typeof cellValue === 'string') {
+            return cellValue.includes(DEFAULT_LIBRARY_NAME)
+                ? cellValue.split(DEFAULT_LIBRARY_NAME).join(libraryName)
+                : cellValue;
+        }
+
+        if (cellValue && Array.isArray(cellValue.richText)) {
+            let hasReplacement = false;
+            const richText = cellValue.richText.map((part) => {
+                if (typeof part.text !== 'string' || !part.text.includes(DEFAULT_LIBRARY_NAME)) {
+                    return part;
+                }
+
+                hasReplacement = true;
+                return {
+                    ...part,
+                    text: part.text.split(DEFAULT_LIBRARY_NAME).join(libraryName)
+                };
+            });
+
+            return hasReplacement ? { ...cellValue, richText } : cellValue;
+        }
+
+        return cellValue;
     }
 
     function ensureOffWorkerRows(sheet) {
@@ -976,9 +1044,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderAll() {
+        updateRunButtonState();
+
         const titleEl = document.getElementById('target-employee-type');
         if (state.mode === 'regular') {
-            titleEl.innerText = '기준 근무일 (설정 전)';
+            titleEl.innerText = '기준 근무일 (미적용 상태)';
             titleEl.className = 'text-stone-500 font-medium mt-2 flex items-center gap-2';
             titleEl.previousElementSibling.className = 'w-2 h-2 rounded-full bg-stone-400';
         } else {
