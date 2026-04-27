@@ -83,6 +83,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const alertModalMessage = document.getElementById('alert-modal-message');
     const closeAlertBtn = document.getElementById('close-alert-btn');
 
+    const confirmActionModal = document.getElementById('confirm-action-modal');
+    const confirmActionModalIcon = document.getElementById('confirm-action-modal-icon');
+    const confirmActionModalLabel = document.getElementById('confirm-action-modal-label');
+    const confirmActionModalTitle = document.getElementById('confirm-action-modal-title');
+    const confirmActionModalMessage = document.getElementById('confirm-action-modal-message');
+    const closeConfirmActionModalBtn = document.getElementById('close-confirm-action-modal-btn');
+    const cancelConfirmActionModalBtn = document.getElementById('cancel-confirm-action-modal-btn');
+    const confirmActionModalBtn = document.getElementById('confirm-action-modal-btn');
+
     const roomInputModal = document.getElementById('room-input-modal');
     const closeRoomInputModalBtn = document.getElementById('close-room-input-modal-btn');
     const cancelRoomInputModalBtn = document.getElementById('cancel-room-input-modal-btn');
@@ -90,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomInputField = document.getElementById('room-input-field');
 
     let alertModalOnClose = null;
+    let confirmActionModalResolver = null;
     let roomInputModalResolver = null;
 
     loadHolidaysAndSettings();
@@ -276,12 +286,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function confirmExcelScheduleReset(changeLabel) {
         if (excelWorkers.length === 0) {
-            return true;
+            return Promise.resolve(true);
         }
 
-        return window.confirm(
-            `${changeLabel} 변경은 엑셀 근무편성표 계산 기준에 영향을 줍니다.\n이미 추가한 근무자 명단과 상세설정이 모두 삭제됩니다.\n\n계속하시겠습니까?`
-        );
+        return openConfirmActionModal({
+            label: 'Schedule Reset',
+            title: `${changeLabel}을 변경할까요?`,
+            message: `${changeLabel} 변경은 엑셀 근무편성표 계산 기준에 영향을 줍니다.\n이미 추가한 근무자 명단과 상세설정이 모두 삭제됩니다.`,
+            icon: '⚠️',
+            confirmText: '삭제 후 변경',
+            cancelText: '취소'
+        });
     }
 
     function getActiveExcelDetailSettingColumns() {
@@ -355,6 +370,50 @@ document.addEventListener('DOMContentLoaded', () => {
         alertModal.classList.add('flex');
         requestAnimationFrame(() => {
             closeAlertBtn.focus();
+        });
+    }
+
+    function closeConfirmActionModal(result = false) {
+        confirmActionModal.classList.add('hidden');
+        confirmActionModal.classList.remove('flex');
+
+        const resolver = confirmActionModalResolver;
+        confirmActionModalResolver = null;
+        if (typeof resolver === 'function') {
+            resolver(result);
+        }
+    }
+
+    function openConfirmActionModal(options = {}) {
+        const {
+            label = 'Schedule Reset',
+            title = '변경 내용을 적용할까요?',
+            message = '',
+            icon = '⚠️',
+            confirmText = '확인',
+            cancelText = '취소'
+        } = options;
+
+        if (confirmActionModalResolver) {
+            closeConfirmActionModal(false);
+        }
+
+        confirmActionModalLabel.textContent = label;
+        confirmActionModalTitle.textContent = title;
+        confirmActionModalMessage.textContent = message;
+        confirmActionModalIcon.textContent = icon;
+        confirmActionModalBtn.textContent = confirmText;
+        cancelConfirmActionModalBtn.textContent = cancelText;
+
+        confirmActionModal.classList.remove('hidden');
+        confirmActionModal.classList.add('flex');
+
+        requestAnimationFrame(() => {
+            confirmActionModalBtn.focus();
+        });
+
+        return new Promise((resolve) => {
+            confirmActionModalResolver = resolve;
         });
     }
 
@@ -432,13 +491,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupEventListeners() {
-        yearSelect.addEventListener('change', (e) => {
+        yearSelect.addEventListener('change', async (e) => {
             const newYear = parseInt(e.target.value, 10);
             if (newYear === state.year) {
                 return;
             }
 
-            if (!confirmExcelScheduleReset('대상 연도')) {
+            if (!(await confirmExcelScheduleReset('대상 연도'))) {
                 yearSelect.value = state.year;
                 return;
             }
@@ -453,13 +512,13 @@ document.addEventListener('DOMContentLoaded', () => {
             resetPublicCalendarPreview();
         });
 
-        monthPairSelect.addEventListener('change', (e) => {
+        monthPairSelect.addEventListener('change', async (e) => {
             const newMonth = parseInt(e.target.value, 10);
             if (newMonth === state.monthStart) {
                 return;
             }
 
-            if (!confirmExcelScheduleReset('대상 월')) {
+            if (!(await confirmExcelScheduleReset('대상 월'))) {
                 monthPairSelect.value = state.monthStart;
                 return;
             }
@@ -474,13 +533,13 @@ document.addEventListener('DOMContentLoaded', () => {
             resetPublicCalendarPreview();
         });
 
-        libraryClosedSelect.addEventListener('change', (e) => {
+        libraryClosedSelect.addEventListener('change', async (e) => {
             const nextLibraryClosed = e.target.value;
             if (nextLibraryClosed === state.libraryClosed) {
                 return;
             }
 
-            if (!confirmExcelScheduleReset('도서관 휴관일')) {
+            if (!(await confirmExcelScheduleReset('도서관 휴관일'))) {
                 libraryClosedSelect.value = state.libraryClosed;
                 return;
             }
@@ -494,12 +553,12 @@ document.addEventListener('DOMContentLoaded', () => {
             resetPublicCalendarPreview();
         });
 
-        personalContainer.addEventListener('change', (e) => {
+        personalContainer.addEventListener('change', async (e) => {
             if (!e.target.matches('.weekday-sel, .weekend-sel')) {
                 return;
             }
 
-            if (!confirmExcelScheduleReset('공무직 개인 휴일')) {
+            if (!(await confirmExcelScheduleReset('공무직 개인 휴일'))) {
                 updatePersonalSettingsUI();
                 return;
             }
@@ -512,8 +571,8 @@ document.addEventListener('DOMContentLoaded', () => {
             resetPublicCalendarPreview();
         });
 
-        resetBtn.addEventListener('click', () => {
-            if (!confirmExcelScheduleReset('공무직 개인 휴일 초기화')) {
+        resetBtn.addEventListener('click', async () => {
+            if (!(await confirmExcelScheduleReset('공무직 개인 휴일 초기화'))) {
                 return;
             }
 
@@ -787,6 +846,18 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAlertModal();
         });
 
+        closeConfirmActionModalBtn.addEventListener('click', () => {
+            closeConfirmActionModal(false);
+        });
+
+        cancelConfirmActionModalBtn.addEventListener('click', () => {
+            closeConfirmActionModal(false);
+        });
+
+        confirmActionModalBtn.addEventListener('click', () => {
+            closeConfirmActionModal(true);
+        });
+
         closeRoomInputModalBtn.addEventListener('click', () => {
             closeRoomInputModal(null);
         });
@@ -805,9 +876,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        confirmActionModal.addEventListener('click', (e) => {
+            if (e.target === confirmActionModal) {
+                closeConfirmActionModal(false);
+            }
+        });
+
         roomInputModal.addEventListener('click', (e) => {
             if (e.target === roomInputModal) {
                 closeRoomInputModal(null);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!confirmActionModalResolver) {
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeConfirmActionModal(false);
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                closeConfirmActionModal(true);
             }
         });
 
@@ -823,7 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        addHolidayBtn.addEventListener('click', () => {
+        addHolidayBtn.addEventListener('click', async () => {
             if (!holidayDateInput.value || !holidayNameInput.value) return;
 
             const dateStr = holidayDateInput.value;
@@ -839,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (!confirmExcelScheduleReset('휴일 목록')) {
+            if (!(await confirmExcelScheduleReset('휴일 목록'))) {
                 return;
             }
 
@@ -2016,8 +2109,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    window.removeHoliday = function(dateStr) {
-        if (!confirmExcelScheduleReset('휴일 목록')) {
+    window.removeHoliday = async function(dateStr) {
+        if (!(await confirmExcelScheduleReset('휴일 목록'))) {
             return;
         }
 

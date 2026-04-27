@@ -84,6 +84,37 @@
         </div>
     </div>
 
+    <!-- Confirm Action Modal -->
+    <div id="confirm-action-modal" class="fixed inset-0 bg-black/45 backdrop-blur-sm hidden items-center justify-center z-[75] transition-opacity px-4">
+        <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border-2 border-amber-200 animate-[bounce_0.45s_ease-out]">
+            <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-6 py-5 text-white">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-start gap-4">
+                        <div id="confirm-action-modal-icon" class="w-14 h-14 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-3xl shadow-inner shrink-0">⚠️</div>
+                        <div>
+                            <p id="confirm-action-modal-label" class="text-[11px] font-semibold tracking-[0.24em] text-white/75 uppercase">Schedule Reset</p>
+                            <h3 id="confirm-action-modal-title" class="text-xl font-extrabold mt-1">변경 내용을 적용할까요?</h3>
+                        </div>
+                    </div>
+                    <button id="close-confirm-action-modal-btn" class="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 text-2xl leading-none transition-colors shrink-0">&times;</button>
+                </div>
+            </div>
+
+            <div class="px-6 py-6 bg-gradient-to-b from-white to-amber-50/40 flex flex-col gap-5">
+                <p id="confirm-action-modal-message" class="text-sm leading-relaxed text-stone-600 whitespace-pre-line"></p>
+
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+                    현재 저장된 엑셀 근무자 명단과 상세설정에 영향이 있는 작업입니다.
+                </div>
+
+                <div class="flex flex-col-reverse sm:flex-row gap-3">
+                    <button id="cancel-confirm-action-modal-btn" class="flex-1 rounded-2xl border-2 border-stone-200 bg-white hover:bg-stone-50 text-stone-700 font-bold py-3 transition-all active:scale-[0.98]">취소</button>
+                    <button id="confirm-action-modal-btn" class="flex-1 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold py-3 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98]">삭제 후 변경</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Room Name Input Modal -->
     <div id="room-input-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-[80] transition-opacity px-4">
         <div class="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-md flex flex-col gap-5 border border-stone-200">
