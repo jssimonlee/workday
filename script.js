@@ -629,8 +629,8 @@ document.addEventListener('DOMContentLoaded', () => {
         addExcelBtn.addEventListener('click', () => {
             if (state.mode === 'regular') {
                 openAlertModal({
-                    title: '근무자 추가 안내',
-                    message: '먼저 공무직 휴관일 달력을 설정한 뒤 확인하기 버튼을 눌러주세요.\n기준 근무일 상태에서는 근무자를 추가할 수 없습니다.',
+                    title: '공무직 휴관일 설정을 먼저 반영해주세요',
+                    message: '근무자를 추가하려면 먼저 꼭 공무직 휴관일 달력 확인하기 버튼을 누르세요.\n설정을 반영한 뒤에 근무자 이름을 입력해 주세요.',
                     icon: '🔔',
                     tone: 'info'
                 });
@@ -1124,7 +1124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isExcelExporting = isLoading;
         downloadExcelBtn.innerHTML = isLoading
             ? '<span>⏳ 파일 생성 중...</span>'
-            : '<span>최종 엑셀 파일 다운로드</span>';
+            : '<span>엑셀 파일 만들기</span>';
         downloadExcelBtn.disabled = isLoading;
 
         confirmExcelExportBtn.textContent = isLoading ? '파일 생성 중...' : '다운로드';
@@ -2033,7 +2033,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isExcelExporting = isLoading;
         downloadExcelBtn.innerHTML = isLoading
             ? '<span>⏳ 파일 생성 중...</span>'
-            : '<span>최종 엑셀 파일 다운로드</span>';
+            : '<span>엑셀 파일 만들기</span>';
         downloadExcelBtn.disabled = isLoading;
 
         confirmExcelExportBtn.textContent = isLoading ? '파일 생성 중...' : '다운로드';
