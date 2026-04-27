@@ -274,6 +274,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateExcelWorkersUI();
     }
 
+    function confirmExcelScheduleReset(changeLabel) {
+        if (excelWorkers.length === 0) {
+            return true;
+        }
+
+        return window.confirm(
+            `${changeLabel} 변경은 엑셀 근무편성표 계산 기준에 영향을 줍니다.\n이미 추가한 근무자 명단과 상세설정이 모두 삭제됩니다.\n\n계속하시겠습니까?`
+        );
+    }
+
     function getActiveExcelDetailSettingColumns() {
         const columns = [];
 
@@ -424,12 +434,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupEventListeners() {
         yearSelect.addEventListener('change', (e) => {
             const newYear = parseInt(e.target.value, 10);
+            if (newYear === state.year) {
+                return;
+            }
+
+            if (!confirmExcelScheduleReset('대상 연도')) {
+                yearSelect.value = state.year;
+                return;
+            }
+
             if (excelWorkers.length > 0) {
-                const confirmed = confirm('대상 연도가 변경됩니다.\n저장된 엑셀 근무자 명단이 모두 삭제됩니다.\n\n계속하시겠습니까?');
-                if (!confirmed) {
-                    yearSelect.value = state.year;
-                    return;
-                }
                 resetExcelWorkerData();
             }
 
@@ -441,12 +455,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         monthPairSelect.addEventListener('change', (e) => {
             const newMonth = parseInt(e.target.value, 10);
+            if (newMonth === state.monthStart) {
+                return;
+            }
+
+            if (!confirmExcelScheduleReset('대상 월')) {
+                monthPairSelect.value = state.monthStart;
+                return;
+            }
+
             if (excelWorkers.length > 0) {
-                const confirmed = confirm('대상 월이 변경됩니다.\n저장된 엑셀 근무자 명단이 모두 삭제됩니다.\n\n계속하시겠습니까?');
-                if (!confirmed) {
-                    monthPairSelect.value = state.monthStart;
-                    return;
-                }
                 resetExcelWorkerData();
             }
 
@@ -457,7 +475,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         libraryClosedSelect.addEventListener('change', (e) => {
-            state.libraryClosed = e.target.value;
+            const nextLibraryClosed = e.target.value;
+            if (nextLibraryClosed === state.libraryClosed) {
+                return;
+            }
+
+            if (!confirmExcelScheduleReset('도서관 휴관일')) {
+                libraryClosedSelect.value = state.libraryClosed;
+                return;
+            }
+
+            if (excelWorkers.length > 0) {
+                resetExcelWorkerData();
+            }
+
+            state.libraryClosed = nextLibraryClosed;
             saveSettingsToLocalStorage();
             resetPublicCalendarPreview();
         });
@@ -467,11 +499,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (!confirmExcelScheduleReset('공무직 개인 휴일')) {
+                updatePersonalSettingsUI();
+                return;
+            }
+
+            if (excelWorkers.length > 0) {
+                resetExcelWorkerData();
+            }
+
             syncPersonalSettingsFromUI();
             resetPublicCalendarPreview();
         });
 
         resetBtn.addEventListener('click', () => {
+            if (!confirmExcelScheduleReset('공무직 개인 휴일 초기화')) {
+                return;
+            }
+
+            if (excelWorkers.length > 0) {
+                resetExcelWorkerData();
+            }
+
             state.personalSettings = {};
             updatePersonalSettingsUI();
             resetPublicCalendarPreview();
@@ -788,6 +837,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     tone: 'warning'
                 });
                 return;
+            }
+
+            if (!confirmExcelScheduleReset('휴일 목록')) {
+                return;
+            }
+
+            if (excelWorkers.length > 0) {
+                resetExcelWorkerData();
             }
 
             if (deletedDefaults.includes(dateStr)) {
@@ -1960,6 +2017,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.removeHoliday = function(dateStr) {
+        if (!confirmExcelScheduleReset('휴일 목록')) {
+            return;
+        }
+
+        if (excelWorkers.length > 0) {
+            resetExcelWorkerData();
+        }
+
         const isDefault = (typeof DEFAULT_HOLIDAYS !== 'undefined')
             && DEFAULT_HOLIDAYS.find((item) => item.date === dateStr);
 
