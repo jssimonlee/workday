@@ -5,6 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const ROOM_SETTING_OPTIONS = ['종합자료실', '어린이실', '유아실', '장난감실'];
     const SHIFT_SETTING_OPTIONS = ['주간', '야간'];
     const CUSTOM_ROOM_SETTING_VALUE = '__custom__';
+    const NIGHT_WORK_TIME_TEXT = '18:00~22:00';
+    const DAY_WORK_TIME_TEXT = '09:00~18:00';
+    const NIGHT_WEEKEND_WORK_TIME_TEXT = ' (주말: 09:00~18:00)';
+    const MIXED_WORK_TIME_TEXT = '(주간) 09:00~18:00, (야간)18:00~22:00';
+    const MIXED_WEEKEND_WORK_TIME_TEXT = ' (주말)09:00~18:00';
 
     let holidays = [];
     let deletedDefaults = [];
@@ -829,8 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const showOffWorkers = exportOptions.showOffWorkers;
 
             sheet.name = `${year.toString().slice(-2)}년 ${month}월`;
-            sheet.getCell('A1').value = `${year}년 ${String(month).padStart(2, '0')}월 ${libraryName} 야간근무 편성표`;
+            sheet.getCell('A1').value = getExcelSheetTitle(year, month, libraryName, exportOptions);
             replaceLibraryNameInSheet(sheet, libraryName);
+            replaceWorkTimeInSheet(sheet, year, month, exportOptions);
 
             const monthlyWorkerDays = createWorkerCountMap();
             clearScheduleArea(sheet, 17);
@@ -1023,6 +1029,35 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function getExcelWorkerShiftMeta(name, year, month, exportOptions) {
+        const useRoomSettings = exportOptions.showDetailedSettings && exportOptions.useRoomSettings;
+        const useShiftSettings = exportOptions.showDetailedSettings && exportOptions.useShiftSettings;
+        const { weekdayRoom, weekendRoom, shiftValue } = getExcelWorkerDetailValues(name, year, month);
+        const hasRoomSetting = useRoomSettings && !!(weekdayRoom || weekendRoom);
+
+        if (useShiftSettings && shiftValue) {
+            return {
+                value: shiftValue,
+                isExplicit: true,
+                shouldShowLabel: true
+            };
+        }
+
+        if (hasRoomSetting) {
+            return {
+                value: '주간',
+                isExplicit: false,
+                shouldShowLabel: false
+            };
+        }
+
+        return {
+            value: '야간',
+            isExplicit: false,
+            shouldShowLabel: useShiftSettings
+        };
+    }
+
     function buildWeekendRoomLabelMap(weekDays, year, month, exportOptions) {
         const weekendRoomLabelMap = new Map();
 
@@ -1037,8 +1072,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const dayData = getExcelDateData(dateStr, false);
             dayData.workers.forEach((name) => {
-                const { weekdayRoom, shiftValue } = getExcelWorkerDetailValues(name, year, month);
-                if (weekdayRoom && shiftValue === '주간' && !weekendRoomLabelMap.has(weekdayRoom)) {
+                const { weekdayRoom } = getExcelWorkerDetailValues(name, year, month);
+                const shiftMeta = getExcelWorkerShiftMeta(name, year, month, exportOptions);
+                if (weekdayRoom && shiftMeta.isExplicit && shiftMeta.value === '주간' && !weekendRoomLabelMap.has(weekdayRoom)) {
                     weekendRoomLabelMap.set(weekdayRoom, `${weekdayRoom} 주간`);
                 }
             });
@@ -1050,7 +1086,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildExcelWorkerDisplayInfo(name, year, month, exportOptions, originalIndex, date, weekendRoomLabelMap = new Map()) {
         const useRoomSettings = exportOptions.showDetailedSettings && exportOptions.useRoomSettings;
         const useShiftSettings = exportOptions.showDetailedSettings && exportOptions.useShiftSettings;
-        const { weekdayRoom, weekendRoom, shiftValue } = getExcelWorkerDetailValues(name, year, month);
+        const { weekdayRoom, weekendRoom } = getExcelWorkerDetailValues(name, year, month);
+        const shiftMeta = getExcelWorkerShiftMeta(name, year, month, exportOptions);
         const weekend = isWeekendDate(date);
 
         let roomValue = '';
@@ -1061,8 +1098,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (useRoomSettings && roomValue) {
                 label = weekendRoomLabelMap.get(roomValue) || roomValue;
-            } else if (useShiftSettings && shiftValue === '주간') {
-                label = '주간';
+            } else if (useShiftSettings && shiftMeta.shouldShowLabel) {
+                label = shiftMeta.value;
             }
         } else {
             const labelParts = [];
@@ -1071,8 +1108,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (useRoomSettings && roomValue) {
                 labelParts.push(roomValue);
             }
-            if (useShiftSettings && shiftValue) {
-                labelParts.push(shiftValue);
+            if (useShiftSettings && shiftMeta.shouldShowLabel) {
+                labelParts.push(shiftMeta.value);
             }
 
             label = labelParts.join(' ');
@@ -1404,6 +1441,107 @@ document.addEventListener('DOMContentLoaded', () => {
         return cellValue;
     }
 
+    function getMonthlyWorkTimeConfig(year, month, exportOptions) {
+        let hasDayShift = false;
+        let hasNightShift = false;
+
+        excelWorkers.forEach((name) => {
+            const shiftMeta = getExcelWorkerShiftMeta(name, year, month, exportOptions);
+
+            if (shiftMeta.value === '야간') {
+                hasNightShift = true;
+            } else {
+                hasDayShift = true;
+            }
+        });
+
+        if (hasDayShift && hasNightShift) {
+            return {
+                mainText: MIXED_WORK_TIME_TEXT,
+                weekendText: MIXED_WEEKEND_WORK_TIME_TEXT,
+                fullText: `${MIXED_WORK_TIME_TEXT}${MIXED_WEEKEND_WORK_TIME_TEXT}`
+            };
+        }
+
+        if (hasNightShift) {
+            return {
+                mainText: NIGHT_WORK_TIME_TEXT,
+                weekendText: NIGHT_WEEKEND_WORK_TIME_TEXT,
+                fullText: `${NIGHT_WORK_TIME_TEXT}${NIGHT_WEEKEND_WORK_TIME_TEXT}`
+            };
+        }
+
+        return {
+            mainText: DAY_WORK_TIME_TEXT,
+            weekendText: '',
+            fullText: DAY_WORK_TIME_TEXT
+        };
+    }
+
+    function getExcelSheetTitle(year, month, libraryName, exportOptions) {
+        const workTimeConfig = getMonthlyWorkTimeConfig(year, month, exportOptions);
+        const scheduleLabel = workTimeConfig.mainText === NIGHT_WORK_TIME_TEXT
+            ? '야간근무 편성표'
+            : '근무 편성표';
+
+        return `${year}년 ${String(month).padStart(2, '0')}월 ${libraryName} ${scheduleLabel}`;
+    }
+
+    function replaceWorkTimeInSheet(sheet, year, month, exportOptions) {
+        const workTimeConfig = getMonthlyWorkTimeConfig(year, month, exportOptions);
+
+        sheet.eachRow((row) => {
+            row.eachCell({ includeEmpty: false }, (cell) => {
+                const replacedValue = replaceWorkTimeInCellValue(cell.value, workTimeConfig);
+                if (replacedValue !== cell.value) {
+                    cell.value = replacedValue;
+                }
+            });
+        });
+    }
+
+    function replaceWorkTimeInCellValue(cellValue, workTimeConfig) {
+        if (typeof cellValue === 'string') {
+            return cellValue.includes('근무시간:')
+                ? cellValue.replace(/(근무시간:\s*).*/, `$1${workTimeConfig.fullText}`)
+                : cellValue;
+        }
+
+        if (cellValue && Array.isArray(cellValue.richText)) {
+            let hasReplacement = false;
+
+            const richText = cellValue.richText
+                .map((part) => {
+                    if (typeof part.text !== 'string') {
+                        return part;
+                    }
+
+                    if (part.text.includes('근무시간:')) {
+                        hasReplacement = true;
+                        return {
+                            ...part,
+                            text: part.text.replace(/(근무시간:\s*).*/, `$1${workTimeConfig.mainText}`)
+                        };
+                    }
+
+                    if (part.text.includes('주말')) {
+                        hasReplacement = true;
+                        return {
+                            ...part,
+                            text: workTimeConfig.weekendText
+                        };
+                    }
+
+                    return part;
+                })
+                .filter((part) => typeof part.text !== 'string' || part.text !== '');
+
+            return hasReplacement ? { ...cellValue, richText } : cellValue;
+        }
+
+        return cellValue;
+    }
+
     function ensureOffWorkerRows(sheet) {
         const originalWorkerRows = [7, 9, 11, 13, 15, 17];
 
@@ -1631,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const theme = monthThemeClasses[monthIndex % monthThemeClasses.length];
             const monthHeader = document.createElement('th');
             monthHeader.colSpan = detailColumns.length;
-            monthHeader.className = `sticky top-0 z-20 px-3 py-3 text-center text-xs font-bold text-stone-700 border-b border-r border-teal-300 shadow-[0_1px_0_0_rgba(20,83,45,0.08)] ${theme.header} ${monthIndex > 0 ? theme.divider : ''}`;
+            monthHeader.className = `sticky top-0 z-20 px-3 py-3 text-center text-xs font-bold text-stone-700 border-b border-r border-teal-300 shadow-[0_1px_0_0_rgba(20,83,45,0.08)] ${theme.header} ${theme.divider}`;
             monthHeader.textContent = label;
             headerRow.appendChild(monthHeader);
         });
