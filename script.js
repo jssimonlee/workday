@@ -493,6 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupEventListeners() {
         let isWorkerNameComposing = false;
         let shouldIgnoreWorkerNameEnter = false;
+        let shouldSubmitWorkerNameAfterComposition = false;
 
         yearSelect.addEventListener('change', async (e) => {
             const newYear = parseInt(e.target.value, 10);
@@ -586,20 +587,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         workerNameInput.addEventListener('compositionstart', () => {
             isWorkerNameComposing = true;
+            shouldSubmitWorkerNameAfterComposition = false;
         });
 
         workerNameInput.addEventListener('compositionend', () => {
             isWorkerNameComposing = false;
+
+            if (!shouldSubmitWorkerNameAfterComposition) {
+                return;
+            }
+
+            shouldSubmitWorkerNameAfterComposition = false;
             shouldIgnoreWorkerNameEnter = true;
 
             requestAnimationFrame(() => {
-                shouldIgnoreWorkerNameEnter = false;
+                addExcelBtn.click();
+
+                requestAnimationFrame(() => {
+                    shouldIgnoreWorkerNameEnter = false;
+                });
             });
         });
 
         workerNameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                if (e.isComposing || isWorkerNameComposing || shouldIgnoreWorkerNameEnter || e.keyCode === 229) {
+                if (e.isComposing || isWorkerNameComposing || e.keyCode === 229) {
+                    shouldSubmitWorkerNameAfterComposition = true;
+                    return;
+                }
+
+                if (shouldIgnoreWorkerNameEnter) {
+                    e.preventDefault();
                     return;
                 }
 
