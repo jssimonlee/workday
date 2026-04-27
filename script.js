@@ -558,28 +558,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (!(await confirmExcelScheduleReset('공무직 개인 휴일'))) {
-                updatePersonalSettingsUI();
-                return;
-            }
-
-            if (excelWorkers.length > 0) {
-                resetExcelWorkerData();
-            }
-
             syncPersonalSettingsFromUI();
             resetPublicCalendarPreview();
         });
 
         resetBtn.addEventListener('click', async () => {
-            if (!(await confirmExcelScheduleReset('공무직 개인 휴일 초기화'))) {
-                return;
-            }
-
-            if (excelWorkers.length > 0) {
-                resetExcelWorkerData();
-            }
-
             state.personalSettings = {};
             updatePersonalSettingsUI();
             resetPublicCalendarPreview();
