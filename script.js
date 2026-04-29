@@ -10,6 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const NIGHT_WEEKEND_WORK_TIME_TEXT = ' (주말: 09:00~18:00)';
     const MIXED_WORK_TIME_TEXT = '(주간) 09:00~18:00, (야간)18:00~22:00';
     const MIXED_WEEKEND_WORK_TIME_TEXT = ' (주말)09:00~18:00';
+    const OFF_WORKER_ROW_FILL = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD6DCE4' }
+    };
 
     let holidays = [];
     let deletedDefaults = [];
@@ -992,9 +997,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(base64ToArrayBuffer(templateBase64));
+        workbook.calcProperties.fullCalcOnLoad = true;
 
         const regularWorkDays = calculateRegularWorkDaysForRange();
         const totalWorkerDays = createWorkerCountMap();
+        const monthlySummaryCellRefs = [];
 
         for (let index = 0; index < 2; index++) {
             const sheet = workbook.worksheets[index];
@@ -1012,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const monthlyWorkerDays = createWorkerCountMap();
             clearScheduleArea(sheet, 17);
 
-            const { lastUsedRow, scheduleEndRow } = writeMonthlyScheduleArea(
+            const { lastUsedRow, scheduleEndRow, workerFormulaRanges } = writeMonthlyScheduleArea(
                 sheet,
                 year,
                 month,
@@ -1038,24 +1045,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const monthRegularDays = calculateRegularWorkDaysForMonth(year, month);
             const summaryStartRow = sheet.rowCount + 4;
             let summaryRow = summaryStartRow;
+            const workerSummaryRefs = {};
 
             sheet.getCell(summaryRow, 1).value = `${month}월 근무일수`;
             sheet.getCell(summaryRow, 1).font = { bold: true, size: 11 };
             summaryRow++;
 
             excelWorkers.forEach((name) => {
+                const summaryValueCell = sheet.getCell(summaryRow, 2);
+
                 sheet.getCell(summaryRow, 1).value = name;
                 sheet.getCell(summaryRow, 1).font = { bold: true, size: 10 };
-                sheet.getCell(summaryRow, 2).value = `${monthlyWorkerDays[name]}일`;
-                sheet.getCell(summaryRow, 2).font = { size: 10 };
+                summaryValueCell.value = {
+                    formula: buildWorkerDayCountFormula(workerFormulaRanges, name),
+                    result: monthlyWorkerDays[name]
+                };
+                summaryValueCell.font = { size: 10 };
+                summaryValueCell.numFmt = '0"일"';
+                workerSummaryRefs[name] = summaryValueCell.address;
                 summaryRow++;
             });
+
+            monthlySummaryCellRefs[index] = {
+                sheetName: sheet.name,
+                workerRefs: workerSummaryRefs
+            };
 
             summaryRow++;
             sheet.getCell(summaryRow, 1).value = '기준 근무일';
             sheet.getCell(summaryRow, 1).font = { bold: true, size: 10 };
-            sheet.getCell(summaryRow, 2).value = `${monthRegularDays}일`;
+            sheet.getCell(summaryRow, 2).value = monthRegularDays;
             sheet.getCell(summaryRow, 2).font = { bold: true, size: 10 };
+            sheet.getCell(summaryRow, 2).numFmt = '0"일"';
 
             if (index === 1) {
                 let totalRow = summaryStartRow;
@@ -1064,18 +1085,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalRow++;
 
                 excelWorkers.forEach((name) => {
+                    const totalValueCell = sheet.getCell(totalRow, 9);
+                    const totalFormulaReferences = monthlySummaryCellRefs
+                        .map((summaryInfo) => {
+                            if (!summaryInfo?.workerRefs?.[name]) {
+                                return null;
+                            }
+
+                            return getSheetFormulaReference(summaryInfo.sheetName, summaryInfo.workerRefs[name]);
+                        })
+                        .filter(Boolean);
+
                     sheet.getCell(totalRow, 8).value = name;
                     sheet.getCell(totalRow, 8).font = { bold: true, size: 10 };
-                    sheet.getCell(totalRow, 9).value = `${totalWorkerDays[name]}일`;
-                    sheet.getCell(totalRow, 9).font = { size: 10 };
+                    totalValueCell.value = {
+                        formula: buildTotalWorkerDayFormula(totalFormulaReferences),
+                        result: totalWorkerDays[name]
+                    };
+                    totalValueCell.font = { size: 10 };
+                    totalValueCell.numFmt = '0"일"';
                     totalRow++;
                 });
 
                 totalRow++;
                 sheet.getCell(totalRow, 8).value = '기준 근무일(2개월)';
                 sheet.getCell(totalRow, 8).font = { bold: true, size: 10 };
-                sheet.getCell(totalRow, 9).value = `${regularWorkDays}일`;
+                sheet.getCell(totalRow, 9).value = regularWorkDays;
                 sheet.getCell(totalRow, 9).font = { bold: true, size: 10 };
+                sheet.getCell(totalRow, 9).numFmt = '0"일"';
             }
         }
 
@@ -1145,6 +1182,65 @@ document.addEventListener('DOMContentLoaded', () => {
             acc[name] = 0;
             return acc;
         }, {});
+    }
+
+    function getExcelColumnLetter(columnNumber) {
+        let current = columnNumber;
+        let label = '';
+
+        while (current > 0) {
+            const remainder = (current - 1) % 26;
+            label = String.fromCharCode(65 + remainder) + label;
+            current = Math.floor((current - 1) / 26);
+        }
+
+        return label;
+    }
+
+    function escapeExcelFormulaString(value) {
+        return String(value || '').replace(/"/g, '""');
+    }
+
+    function getSheetFormulaReference(sheetName, cellAddress) {
+        const escapedSheetName = String(sheetName).replace(/'/g, "''");
+        return `'${escapedSheetName}'!${cellAddress}`;
+    }
+
+    function buildWorkerDayCountFormula(workerRanges, workerName) {
+        if (!Array.isArray(workerRanges) || workerRanges.length === 0) {
+            return '0';
+        }
+
+        const escapedWorkerName = escapeExcelFormulaString(workerName);
+        const matchTarget = `,${escapedWorkerName},`;
+
+        return workerRanges
+            .map((rangeRef) => `SUMPRODUCT(--ISNUMBER(SEARCH("${matchTarget}",","&SUBSTITUTE(${rangeRef},CHAR(10),",")&",")))`)
+            .join('+');
+    }
+
+    function buildTotalWorkerDayFormula(references) {
+        if (!Array.isArray(references) || references.length === 0) {
+            return '0';
+        }
+
+        return references.join('+');
+    }
+
+    function incrementWorkerCountsFromRenderedCell(countMap, cellValue) {
+        if (typeof cellValue !== 'string' || !cellValue.trim()) {
+            return;
+        }
+
+        cellValue
+            .split(/[\n,]/)
+            .map((name) => name.trim())
+            .filter(Boolean)
+            .forEach((name) => {
+                if (Object.prototype.hasOwnProperty.call(countMap, name)) {
+                    countMap[name]++;
+                }
+            });
     }
 
     function getRoomSettingSortOrder(roomValue) {
@@ -1425,10 +1521,18 @@ document.addEventListener('DOMContentLoaded', () => {
         writeScheduleTextCell(sheet.getCell(startRow, colIdx), value, options);
     }
 
+    function applyFillToCell(cell, fill) {
+        cell.style = {
+            ...(cell.style || {}),
+            fill
+        };
+    }
+
     function writeMonthlyScheduleArea(sheet, year, month, exportOptions, showOffWorkers, monthlyWorkerDays, totalWorkerDays) {
         const weekBlocks = buildMonthWeekCells(year, month);
         const useDetailedRows = shouldUseDetailedScheduleRows(exportOptions);
         const templateWorkerRowHeight = sheet.getRow(7).height;
+        const workerFormulaRanges = [];
         let currentRow = 6;
         let insertedRowCount = 0;
         let lastUsedRow = 7;
@@ -1466,9 +1570,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 sheet.getRow(nextRowNumber).height = templateWorkerRowHeight;
                 clearScheduleRow(sheet, nextRowNumber);
                 setScheduleLabelRow(sheet, nextRowNumber, '휴무자', { color: 'FFFF0000' });
+                applyFillToCell(sheet.getCell(nextRowNumber, 1), OFF_WORKER_ROW_FILL);
                 offRowNumber = nextRowNumber;
                 nextRowNumber++;
             }
+
+            scheduleRows.forEach(({ rowNumber }) => {
+                workerFormulaRanges.push(
+                    `${getExcelColumnLetter(SCHEDULE_START_COLUMN)}${rowNumber}:${getExcelColumnLetter(SCHEDULE_END_COLUMN)}${rowNumber}`
+                );
+            });
 
             weekDays.forEach(({ date, dateStr, colIdx }) => {
                 const dayData = getExcelDateData(dateStr, showOffWorkers);
@@ -1502,19 +1613,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             formatWorkersForExcel(groupedMap.get(key) || [])
                         );
                     });
+                    scheduleRows.forEach(({ rowNumber }) => {
+                        const renderedValue = sheet.getCell(rowNumber, colIdx).value;
+                        incrementWorkerCountsFromRenderedCell(monthlyWorkerDays, renderedValue);
+                        incrementWorkerCountsFromRenderedCell(totalWorkerDays, renderedValue);
+                    });
                 }
 
-                dayData.workers.forEach((name) => {
-                    monthlyWorkerDays[name]++;
-                    totalWorkerDays[name]++;
-                });
-
                 if (offRowNumber !== null && !specialScheduleLabel) {
+                    const offWorkerCell = sheet.getCell(offRowNumber, colIdx);
+
                     writeScheduleTextCell(
-                        sheet.getCell(offRowNumber, colIdx),
+                        offWorkerCell,
                         formatWorkersForExcel(dayData.offWorkers),
                         { color: 'FF000000' }
                     );
+                    applyFillToCell(offWorkerCell, OFF_WORKER_ROW_FILL);
                 }
             });
 
@@ -1532,7 +1646,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return {
             lastUsedRow,
-            scheduleEndRow: 17 + insertedRowCount
+            scheduleEndRow: 17 + insertedRowCount,
+            workerFormulaRanges
         };
     }
 
